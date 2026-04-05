@@ -858,6 +858,76 @@ async def search_memory(q: str):
     }
 
 
+@app.get("/memory/timeline")
+async def get_memory_timeline(types: str = "", limit: int = 100, before: str | None = None):
+    """Return a chronological timeline of Samantha's stored knowledge.
+
+    Query params:
+      types: comma-separated list of entry types (fact, entity, observation,
+             episode, mood, news). Empty string returns empty list.
+      limit: maximum number of entries to return (1-500, default 100).
+      before: ISO 8601 timestamp cursor for pagination; returns entries with
+              ts strictly less than this value.
+    """
+    if state.memory is None:
+        return {"entries": [], "has_more": False, "next_before": None}
+
+    from memory.timeline import build_timeline, VALID_TYPES
+    from fastapi import HTTPException
+
+    limit = max(1, min(500, int(limit)))
+
+    type_set = {t.strip() for t in types.split(",") if t.strip()}
+    unknown = type_set - VALID_TYPES
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown entry types: {sorted(unknown)}",
+        )
+
+    try:
+        result = build_timeline(
+            state.memory.conn,
+            types=type_set,
+            limit=limit,
+            before=before,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return result
+
+
+@app.delete("/memory/entry/{entry_type}/{entry_id}", status_code=204)
+async def delete_memory_entry(entry_type: str, entry_id: int):
+    """Soft-delete a memory entry. Idempotent — missing row is a no-op 204."""
+    if state.memory is None:
+        return
+
+    from memory.timeline import soft_delete_entry
+    from fastapi import HTTPException
+
+    try:
+        soft_delete_entry(state.memory.conn, entry_type, entry_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/memory/entry/{entry_type}/{entry_id}/restore", status_code=204)
+async def restore_memory_entry(entry_type: str, entry_id: int):
+    """Restore a soft-deleted memory entry. Idempotent — non-deleted row is a no-op 204."""
+    if state.memory is None:
+        return
+
+    from memory.timeline import restore_entry
+    from fastapi import HTTPException
+
+    try:
+        restore_entry(state.memory.conn, entry_type, entry_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 def _split_sentences(text: str) -> list[str]:
     """Split text into sentences for chunked TTS."""
     import re

@@ -434,11 +434,232 @@
       background: rgba(196, 88, 120, 0.25);
       border-color: rgba(196, 88, 120, 0.55);
       box-shadow: 0 0 12px rgba(196, 88, 120, 0.5);
-      animation: visionGlow 2.4s ease-in-out infinite;
+      animation: toggleGlow 2.4s ease-in-out infinite;
     }
-    @keyframes visionGlow {
+    @keyframes toggleGlow {
       0%, 100% { box-shadow: 0 0 10px rgba(196, 88, 120, 0.4); }
       50%      { box-shadow: 0 0 18px rgba(196, 88, 120, 0.75); }
+    }
+
+    /* ─── Memory timeline toggle ─────────────────────────────────────── */
+    #timeline-toggle {
+      position: fixed;
+      top: 3.8rem;
+      right: 6rem;
+      z-index: 50;
+      width: 2.4rem;
+      height: 2.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 1px solid rgba(58, 15, 28, 0.25);
+      border-radius: 50%;
+      background: rgba(254, 245, 237, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #3a0f1c;
+      opacity: 0.8;
+      transition: opacity 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      padding: 0;
+    }
+    #timeline-toggle:hover {
+      opacity: 1;
+      background: rgba(254, 245, 237, 0.7);
+    }
+    #timeline-toggle.active {
+      opacity: 1;
+      background: rgba(196, 88, 120, 0.25);
+      border-color: rgba(196, 88, 120, 0.55);
+      box-shadow: 0 0 12px rgba(196, 88, 120, 0.5);
+      animation: toggleGlow 2.4s ease-in-out infinite;
+    }
+
+    /* ─── Memory timeline panel ─────────────────────────────────────── */
+    #timeline-panel {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(254, 245, 237, 0.94);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      overflow-y: auto;
+    }
+    #timeline-panel.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #timeline-panel .timeline-inner {
+      max-width: 720px;
+      margin: 4rem auto 6rem;
+      padding: 2rem 2.5rem;
+    }
+    #timeline-panel .timeline-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 1.2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(92, 32, 48, 0.15);
+    }
+    #timeline-panel .timeline-header h2 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
+      font-weight: 400;
+      font-style: italic;
+      color: #3a0f1c;
+      margin: 0;
+    }
+    #timeline-panel .timeline-close {
+      background: transparent;
+      border: none;
+      color: #3a0f1c;
+      font-size: 1.6rem;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+      padding: 0.2rem 0.6rem;
+    }
+    #timeline-panel .timeline-close:hover { opacity: 1; }
+
+    #timeline-panel .timeline-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.6rem;
+    }
+    #timeline-panel .chip {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #3a0f1c;
+      background: rgba(254, 245, 237, 0.5);
+      border: 1px solid rgba(58, 15, 28, 0.2);
+      border-radius: 999px;
+      padding: 0.35rem 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease;
+      opacity: 0.65;
+    }
+    #timeline-panel .chip:hover { opacity: 0.9; }
+    #timeline-panel .chip.active {
+      background: #3a0f1c;
+      color: #fef5ed;
+      opacity: 1;
+    }
+
+    #timeline-panel .day-bucket {
+      margin-bottom: 2rem;
+    }
+    #timeline-panel .day-bucket-header {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #7a3a48;
+      margin-bottom: 0.6rem;
+      opacity: 0.75;
+    }
+    #timeline-panel .entry {
+      position: relative;
+      padding: 0.7rem 2rem 0.7rem 0.9rem;
+      border-radius: 8px;
+      transition: background 0.2s ease, opacity 0.3s ease;
+    }
+    #timeline-panel .entry:hover { background: rgba(92, 32, 48, 0.06); }
+    #timeline-panel .entry .entry-kicker {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.58rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #7a3a48;
+      margin-right: 0.6rem;
+    }
+    #timeline-panel .entry .entry-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 0.95rem;
+      font-style: italic;
+      color: #3a0f1c;
+    }
+    #timeline-panel .entry .entry-body {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.05rem;
+      color: #3a0f1c;
+      margin-top: 0.15rem;
+      line-height: 1.4;
+    }
+    #timeline-panel .entry-delete {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: #3a0f1c;
+      font-size: 1.1rem;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      padding: 0.2rem 0.5rem;
+    }
+    #timeline-panel .entry:hover .entry-delete { opacity: 0.5; }
+    #timeline-panel .entry-delete:hover { opacity: 1 !important; }
+
+    #timeline-panel .timeline-empty {
+      text-align: center;
+      color: #7a3a48;
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 1.1rem;
+      padding: 3rem 1rem;
+    }
+    #timeline-panel .timeline-footer {
+      text-align: center;
+      color: #7a3a48;
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 0.9rem;
+      padding: 1.5rem 0;
+      opacity: 0.7;
+    }
+    #timeline-panel .timeline-toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(58, 15, 28, 0.92);
+      color: #fef5ed;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.82rem;
+      padding: 0.7rem 1.2rem;
+      border-radius: 999px;
+      box-shadow: 0 6px 24px rgba(58, 15, 28, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 70;
+    }
+    #timeline-panel .timeline-toast.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #timeline-panel .timeline-toast .undo-btn {
+      background: transparent;
+      border: none;
+      color: #fef5ed;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-left: 0.5rem;
+      padding: 0;
     }
   </style>
 </head>
@@ -468,6 +689,16 @@
     <div class="date" id="clock-date"></div>
   </div>
   <div id="identity">Samantha</div>
+  <button id="timeline-toggle" type="button" title="Memory — click to open" aria-label="Open memory timeline">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="5" cy="6" r="1.5"/>
+      <line x1="9" y1="6" x2="20" y2="6"/>
+      <circle cx="5" cy="12" r="1.5"/>
+      <line x1="9" y1="12" x2="20" y2="12"/>
+      <circle cx="5" cy="18" r="1.5"/>
+      <line x1="9" y1="18" x2="20" y2="18"/>
+    </svg>
+  </button>
   <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -1326,5 +1557,24 @@
     go();
   })();
   </script>
+
+  <div id="timeline-panel" role="dialog" aria-label="Samantha's Memory" aria-hidden="true">
+    <div class="timeline-inner">
+      <header class="timeline-header">
+        <h2>Samantha's Memory</h2>
+        <button class="timeline-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="timeline-filters">
+        <button class="chip active" data-type="fact">Facts</button>
+        <button class="chip active" data-type="observation">Observations</button>
+        <button class="chip active" data-type="episode">Episodes</button>
+        <button class="chip active" data-type="mood">Moods</button>
+        <button class="chip" data-type="entity">Entities</button>
+        <button class="chip" data-type="news">News</button>
+      </div>
+      <div class="timeline-scroll"></div>
+    </div>
+    <div class="timeline-toast"></div>
+  </div>
 </body>
 </html>

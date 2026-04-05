@@ -47,13 +47,6 @@ class NotesIntegration(BaseIntegration):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-            CREATE TABLE IF NOT EXISTS reminders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content TEXT NOT NULL,
-                remind_at TIMESTAMP,
-                completed INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
             CREATE TABLE IF NOT EXISTS memories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 key TEXT UNIQUE NOT NULL,
@@ -62,7 +55,6 @@ class NotesIntegration(BaseIntegration):
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             CREATE INDEX IF NOT EXISTS idx_notes_category ON notes(category);
-            CREATE INDEX IF NOT EXISTS idx_reminders_pending ON reminders(completed, remind_at);
             CREATE INDEX IF NOT EXISTS idx_memories_key ON memories(key);
         """)
 
@@ -81,19 +73,6 @@ class NotesIntegration(BaseIntegration):
                 keywords=["notes", "what did I", "find note", "search notes"],
                 parameters=["query"],
                 examples=["What notes do I have?", "Find my notes about the project"],
-            ),
-            IntegrationAction(
-                name="set_reminder",
-                description="Set a reminder",
-                keywords=["remind me", "reminder", "don't let me forget", "alarm"],
-                parameters=["content", "remind_at"],
-                examples=["Remind me to call John at 3pm", "Remind me to buy milk"],
-            ),
-            IntegrationAction(
-                name="check_reminders",
-                description="Check pending reminders",
-                keywords=["reminders", "what should I", "pending", "to do", "tasks"],
-                examples=["Any reminders?", "What's on my to-do list?"],
             ),
             IntegrationAction(
                 name="remember",
@@ -115,8 +94,6 @@ class NotesIntegration(BaseIntegration):
         handlers = {
             "save_note": self._save_note,
             "search_notes": self._search_notes,
-            "set_reminder": self._set_reminder,
-            "check_reminders": self._check_reminders,
             "remember": self._remember,
             "recall": self._recall,
         }
@@ -151,24 +128,6 @@ class NotesIntegration(BaseIntegration):
             ).fetchall()
         return {"notes": [dict(r) for r in rows]}
 
-    def _set_reminder(self, params: dict) -> dict:
-        content = params.get("content", "")
-        remind_at = params.get("remind_at")
-        if not content:
-            return {"error": "No reminder content"}
-        self.conn.execute(
-            "INSERT INTO reminders (content, remind_at) VALUES (?, ?)",
-            (content, remind_at)
-        )
-        self.conn.commit()
-        return {"set": True, "content": content, "remind_at": remind_at}
-
-    def _check_reminders(self, params: dict) -> dict:
-        rows = self.conn.execute(
-            "SELECT * FROM reminders WHERE completed = 0 ORDER BY remind_at ASC LIMIT 20"
-        ).fetchall()
-        return {"reminders": [dict(r) for r in rows]}
-
     def _remember(self, params: dict) -> dict:
         key = params.get("key", "")
         value = params.get("value", "")
@@ -189,26 +148,6 @@ class NotesIntegration(BaseIntegration):
         if row:
             return {"found": True, "key": row["key"], "value": row["value"]}
         return {"found": False, "key": key}
-
-    async def get_proactive_updates(self) -> list[dict] | None:
-        now = datetime.now().isoformat()
-        rows = self.conn.execute(
-            "SELECT * FROM reminders WHERE completed = 0 AND remind_at <= ? AND remind_at IS NOT NULL",
-            (now,)
-        ).fetchall()
-        if not rows:
-            return None
-        updates = []
-        for r in rows:
-            updates.append({
-                "type": "card",
-                "title": "Reminder",
-                "body": r["content"],
-                "integration": self.name,
-            })
-            self.conn.execute("UPDATE reminders SET completed = 1 WHERE id = ?", (r["id"],))
-        self.conn.commit()
-        return updates
 
     def get_context_for_llm(self) -> str | None:
         # Inject all memories into context

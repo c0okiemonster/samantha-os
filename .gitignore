@@ -35,6 +35,8 @@ services/stt/models/
 # Samantha's memory (personal data — never commit)
 config/samantha_memory.db
 config/samantha_memory.db-*
+services/orchestrator/config/samantha_memory.db
+services/orchestrator/config/samantha_memory.db-*
 config/db/
 config/google_credentials.json
 config/google_token.json

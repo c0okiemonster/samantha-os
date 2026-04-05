@@ -26,8 +26,14 @@ def _strip_reminder_lead(text: str) -> str:
 
 
 def _split_subject_and_time(text: str) -> tuple[str, str]:
-    """Heuristic: split on the first time marker. Returns (subject, time_phrase)."""
-    patterns = [
+    """Heuristic: split on the first time marker. Returns (subject, time_phrase).
+
+    Handles two layouts:
+      - "<subject> <time>"  e.g. "call mom at 5pm"
+      - "<time> <subject>"  e.g. "in 20 minutes to check the oven"
+    """
+    # Layout 1: subject first, time at the end.
+    tail_patterns = [
         r"\s+(at\s+.+)$",
         r"\s+(in\s+\d.+)$",
         r"\s+(tomorrow.*)$",
@@ -36,12 +42,29 @@ def _split_subject_and_time(text: str) -> tuple[str, str]:
         r"\s+(next\s+.+)$",
         r"\s+(on\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday).*)$",
     ]
-    for p in patterns:
+    for p in tail_patterns:
         m = re.search(p, text, re.IGNORECASE)
         if m:
             subject = text[: m.start()].strip()
             time_phrase = m.group(1).strip()
             return subject, time_phrase
+
+    # Layout 2: time phrase leads, then "to <subject>" or just the subject.
+    # Only unambiguous forms — "at N X" without "to" is ambiguous (N could be
+    # a count or an hour), so we require "to" for that case.
+    lead_patterns = [
+        r"^(in\s+\d+\s+\w+)\s+(?:to\s+)?(.+)$",
+        r"^(at\s+\S+)\s+to\s+(.+)$",
+        r"^(tomorrow(?:\s+\w+)?)\s+(?:to\s+)?(.+)$",
+        r"^(tonight)\s+(?:to\s+)?(.+)$",
+    ]
+    for p in lead_patterns:
+        m = re.match(p, text, re.IGNORECASE)
+        if m:
+            time_phrase = m.group(1).strip()
+            subject = m.group(2).strip()
+            return subject, time_phrase
+
     return text.strip(), ""
 
 
@@ -297,7 +320,8 @@ class TasksIntegration(BaseIntegration):
 
     def _detect_list_and_item(self, text: str) -> tuple[str, str]:
         """Return (list_name, item) or ("", "") if nothing recognized."""
-        t = text.strip()
+        # Strip trailing punctuation so patterns anchored to `$` still match.
+        t = text.strip().rstrip(".!?,")
 
         # "add X to the Y list" / "put X on Y list"
         m = re.search(

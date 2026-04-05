@@ -66,8 +66,12 @@ def parse_when(text: str, tz: str = "Europe/Stockholm") -> datetime:
     if not text or not text.strip():
         raise ParseError("empty time phrase")
 
+    # Strip filler words/punctuation dateparser doesn't handle.
+    cleaned = re.sub(r"\s*o'?clock\s*", " ", text, flags=re.IGNORECASE)
+    cleaned = cleaned.rstrip(".!?,").strip()
+
     dt = dateparser.parse(
-        text,
+        cleaned,
         settings={
             "TIMEZONE": tz,
             "RETURN_AS_TIMEZONE_AWARE": True,

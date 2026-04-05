@@ -475,6 +475,12 @@ async def synthesize(text: str) -> bytes:
 
 async def process_message(user_text: str) -> dict:
     """Full pipeline: intent detection → action or LLM → response."""
+    # Translate non-English input so the intent router, memory, and LLM
+    # all see consistent English. The original utterance is logged by
+    # maybe_translate when a translation happens.
+    from preprocess import maybe_translate
+    user_text, _lang = await maybe_translate(user_text, llm_chat)
+
     analysis = state.personality.analyze_input(user_text)
 
     await state.refresh_memory_context(user_text)

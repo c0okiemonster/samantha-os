@@ -85,15 +85,29 @@ class VisionIntegration(BaseIntegration):
                 name="take_snapshot",
                 description="Look through the webcam and describe what you see",
                 keywords=[
-                    "what do you see", "look at me", "what am i wearing",
-                    "describe what you see", "can you see me", "look around",
-                    "take a look",
+                    # Direct "describe the scene" asks
+                    "what do you see", "look at me", "describe what you see",
+                    "can you see me", "look around", "take a look", "look now",
+                    # Appearance / attire questions
+                    "what am i wearing", "how do i look", "what do i look like",
+                    # Finding / locating objects in view
+                    "where is my", "where are my", "do you see my",
+                    "can you see my", "can you find my", "help me find",
+                    "look for my", "is my", "i lost my",
+                    # Holding / showing things to the camera
+                    "what am i holding", "what is this", "what is it",
+                    "what's this", "what's in my hand", "see what i",
+                    # General visual curiosity
+                    "am i smiling", "do i look", "check on me",
                 ],
                 parameters=["text"],
                 examples=[
                     "What do you see?",
                     "Look at me — what am I wearing today?",
-                    "Take a look around",
+                    "Where are my glasses?",
+                    "Can you see my keys?",
+                    "What am I holding?",
+                    "I lost my phone, do you see it?",
                 ],
             ),
             IntegrationAction(
@@ -158,6 +172,7 @@ class VisionIntegration(BaseIntegration):
             model=self.vlm_model,
             host=self.vlm_host,
             timeout_s=self.vlm_timeout_s,
+            user_question=user_text,
         )
         if not raw:
             return SnapshotResult(

@@ -19,7 +19,9 @@ def integration(memory_db):
 
 
 async def test_take_snapshot_happy_path(integration, monkeypatch):
-    async def fake_describe(image_b64, model, host, timeout_s):
+    async def fake_describe(image_b64, model, host, timeout_s, user_question=None):
+        # Verify the user's question is passed through for context-aware prompting
+        assert user_question == "what do you see?"
         return "a cup of coffee on a wooden desk"
     monkeypatch.setattr("integrations.vision.vlm.describe", fake_describe)
 

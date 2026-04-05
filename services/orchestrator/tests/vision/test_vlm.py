@@ -78,3 +78,49 @@ async def test_describe_missing_response_field_returns_empty():
         result = await describe("b64", "moondream", "localhost:11434", 5.0)
 
     assert result == ""
+
+
+async def test_describe_with_user_question_builds_targeted_prompt():
+    """When user_question is provided, the prompt includes it verbatim
+    and uses the question-answering template — not the generic scene
+    description prompt."""
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.post = AsyncMock(return_value=await _mock_httpx_response(
+        {"response": "You are wearing tortoise-shell glasses."}
+    ))
+
+    with patch("integrations.vision.vlm.httpx.AsyncClient", return_value=mock_client):
+        result = await describe(
+            image_b64="b64",
+            model="moondream",
+            host="localhost:11434",
+            timeout_s=5.0,
+            user_question="where are my glasses?",
+        )
+
+    assert result == "You are wearing tortoise-shell glasses."
+    payload = mock_client.post.call_args[1]["json"]
+    # The user's exact question is embedded in the prompt:
+    assert "where are my glasses?" in payload["prompt"]
+    # And the generic scene description prompt is NOT used:
+    assert VISION_PROMPT not in payload["prompt"]
+
+
+async def test_describe_without_user_question_uses_generic_prompt():
+    """When user_question is empty or None, fall back to the generic
+    VISION_PROMPT so existing callers continue to work."""
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.post = AsyncMock(return_value=await _mock_httpx_response(
+        {"response": "a quiet room"}
+    ))
+
+    with patch("integrations.vision.vlm.httpx.AsyncClient", return_value=mock_client):
+        result = await describe("b64", "moondream", "localhost:11434", 5.0)
+
+    assert result == "a quiet room"
+    payload = mock_client.post.call_args[1]["json"]
+    assert VISION_PROMPT in payload["prompt"]

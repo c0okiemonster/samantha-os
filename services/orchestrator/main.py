@@ -546,13 +546,16 @@ async def process_message(user_text: str) -> dict:
                     fut = asyncio.get_event_loop().create_future()
                     req_id = secrets.token_hex(4)
                     state.pending_snapshots[req_id] = fut
+                    logger.info(f"👁️  broadcasting request_snapshot req_id={req_id} to {len(state.clients)} client(s)")
                     await state.broadcast({
                         "event": "request_snapshot",
                         "req_id": req_id,
                     })
                     try:
                         image_b64 = await asyncio.wait_for(fut, timeout=5.0)
+                        logger.info(f"👁️  snapshot received req_id={req_id} len={len(image_b64) if image_b64 else 0}")
                     except asyncio.TimeoutError:
+                        logger.warning(f"👁️  snapshot TIMEOUT req_id={req_id} — shell never replied")
                         state.pending_snapshots.pop(req_id, None)
                         spoken = (
                             "Hmm, I couldn't get my eyes open in time. "
@@ -955,36 +958,55 @@ async def ws_endpoint(ws: WebSocket):
                     continue
                 await ws.send_json({"event": "user_speaking", "text": user_text})
                 await ws.send_json({"event": "thinking"})
-                result = await process_message(user_text)
-                # Send text immediately so the user sees the response fast
-                await ws.send_json({"event": "samantha_speaking", "text": result["text"], "mood": result["mood"]})
-                # Synthesize audio in background and send when ready
-                asyncio.create_task(_send_audio(ws, result))
-                asyncio.create_task(_extract_memories(
-                    user_text,
-                    result.get("tts_text", result["text"])
-                ))
+                # Spawn process_message as a task so the WS handler can keep
+                # reading incoming messages — needed for the vision snapshot
+                # round-trip where process_message awaits a 'snapshot' reply.
+                async def _handle_audio_turn(txt=user_text):
+                    try:
+                        result = await process_message(txt)
+                        await ws.send_json({"event": "samantha_speaking", "text": result["text"], "mood": result["mood"]})
+                        asyncio.create_task(_send_audio(ws, result))
+                        asyncio.create_task(_extract_memories(
+                            txt,
+                            result.get("tts_text", result["text"])
+                        ))
+                    except Exception:
+                        logger.exception("audio turn handler failed")
+                asyncio.create_task(_handle_audio_turn())
 
             elif data.get("event") == "text_input":
                 text = data["text"]
                 logger.info(f"💬 User (ws): {text}")
                 await ws.send_json({"event": "user_speaking", "text": text})
                 await ws.send_json({"event": "thinking"})
-                result = await process_message(text)
-                # Send text immediately
-                await ws.send_json({"event": "samantha_speaking", "text": result["text"], "mood": result["mood"]})
-                # Synthesize audio in background
-                asyncio.create_task(_send_audio(ws, result))
-                asyncio.create_task(_extract_memories(
-                    text,
-                    result.get("tts_text", result["text"])
-                ))
+                # Spawn process_message as a task so the WS handler can keep
+                # reading incoming messages — needed for the vision snapshot
+                # round-trip where process_message awaits a 'snapshot' reply.
+                async def _handle_text_turn(txt=text):
+                    try:
+                        result = await process_message(txt)
+                        await ws.send_json({"event": "samantha_speaking", "text": result["text"], "mood": result["mood"]})
+                        asyncio.create_task(_send_audio(ws, result))
+                        asyncio.create_task(_extract_memories(
+                            txt,
+                            result.get("tts_text", result["text"])
+                        ))
+                    except Exception:
+                        logger.exception("text turn handler failed")
+                asyncio.create_task(_handle_text_turn())
 
             elif data.get("event") == "snapshot":
                 req_id = data.get("req_id")
+                has_image = "image" in data and data.get("image")
+                has_error = "error" in data
+                logger.info(f"👁️  snapshot WS received req_id={req_id} image={'yes' if has_image else 'no'} error={data.get('error') if has_error else 'none'}")
                 fut = state.pending_snapshots.get(req_id)
-                if fut is not None and not fut.done():
-                    if "error" in data:
+                if fut is None:
+                    logger.warning(f"👁️  no pending future for req_id={req_id} (already cleaned up?)")
+                elif fut.done():
+                    logger.warning(f"👁️  future already done for req_id={req_id}")
+                else:
+                    if has_error:
                         fut.set_exception(SnapshotError(data["error"]))
                     else:
                         fut.set_result(data.get("image", ""))

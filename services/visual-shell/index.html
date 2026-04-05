@@ -405,31 +405,40 @@
       position: fixed;
       top: 3.8rem;
       right: 2rem;
-      z-index: 19;
-      width: 1.8rem;
-      height: 1.8rem;
+      z-index: 50;
+      width: 2.4rem;
+      height: 2.4rem;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      border: none;
-      background: transparent;
+      border: 1px solid rgba(58, 15, 28, 0.25);
+      border-radius: 50%;
+      background: rgba(254, 245, 237, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       color: #3a0f1c;
-      opacity: 0.4;
+      opacity: 0.8;
       font-size: 1.1rem;
-      transition: opacity 0.3s ease, text-shadow 0.3s ease;
+      line-height: 1;
+      transition: opacity 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
       user-select: none;
-      font-family: 'Outfit', sans-serif;
+      padding: 0;
     }
-    #vision-toggle:hover { opacity: 0.75; }
+    #vision-toggle:hover {
+      opacity: 1;
+      background: rgba(254, 245, 237, 0.7);
+    }
     #vision-toggle.active {
-      opacity: 0.85;
-      text-shadow: 0 0 8px rgba(196, 88, 120, 0.55);
+      opacity: 1;
+      background: rgba(196, 88, 120, 0.25);
+      border-color: rgba(196, 88, 120, 0.55);
+      box-shadow: 0 0 12px rgba(196, 88, 120, 0.5);
       animation: visionGlow 2.4s ease-in-out infinite;
     }
     @keyframes visionGlow {
-      0%, 100% { text-shadow: 0 0 6px rgba(196, 88, 120, 0.4); }
-      50%      { text-shadow: 0 0 12px rgba(196, 88, 120, 0.7); }
+      0%, 100% { box-shadow: 0 0 10px rgba(196, 88, 120, 0.4); }
+      50%      { box-shadow: 0 0 18px rgba(196, 88, 120, 0.75); }
     }
   </style>
 </head>
@@ -459,7 +468,7 @@
     <div class="date" id="clock-date"></div>
   </div>
   <div id="identity">Samantha</div>
-  <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">◡</button>
+  <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">👁</button>
 
   <div id="status">
     <div class="dot"></div>
@@ -816,11 +825,35 @@
 
       async function enable() {
         if (enabled) return true;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error('👁️  mediaDevices API not available. Are you on HTTPS or localhost?');
+          return false;
+        }
+        // Try a lenient ideal constraint first, then fall back to bare `video: true`
+        // if the browser is strict about facingMode on desktop.
+        const attempts = [
+          { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } }, audio: false },
+          { video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+          { video: true, audio: false },
+        ];
+        let lastError = null;
+        for (const constraints of attempts) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log('👁️  getUserMedia succeeded with', JSON.stringify(constraints));
+            break;
+          } catch (e) {
+            console.warn('👁️  getUserMedia attempt failed:', e.name, e.message);
+            lastError = e;
+            stream = null;
+          }
+        }
+        if (!stream) {
+          console.error('👁️  all getUserMedia attempts failed. Last error:', lastError && lastError.name, lastError && lastError.message);
+          enabled = false;
+          return false;
+        }
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: 640, height: 480, facingMode: 'user' },
-            audio: false,
-          });
           videoEl = document.createElement('video');
           videoEl.srcObject = stream;
           videoEl.autoplay = true;
@@ -834,7 +867,8 @@
           console.log('👁️  vision enabled');
           return true;
         } catch (e) {
-          console.warn('vision enable failed', e);
+          console.error('👁️  video element setup failed', e);
+          if (stream) stream.getTracks().forEach(t => t.stop());
           stream = null;
           videoEl = null;
           enabled = false;
@@ -885,13 +919,13 @@
     // ─── Vision toggle wiring ───────────────────────────────────────
     const visionToggleEl = document.getElementById('vision-toggle');
     function renderVisionToggle() {
+      // Single glyph for both states; styling (via .active class) shows on/off.
+      visionToggleEl.textContent = '👁';
       if (Vision.isEnabled()) {
         visionToggleEl.classList.add('active');
-        visionToggleEl.textContent = '◉';
         visionToggleEl.title = 'Vision is on — click to close';
       } else {
         visionToggleEl.classList.remove('active');
-        visionToggleEl.textContent = '◡';
         visionToggleEl.title = 'Vision is off — click to let Samantha see';
       }
     }
@@ -1121,14 +1155,18 @@
           Overlay.show(d);
           break;
         case 'request_snapshot':
+          console.log('👁️  request_snapshot received, req_id=', d.req_id, 'Vision.isEnabled()=', Vision.isEnabled());
           try { if (typeof setMood === 'function') setMood('warm'); } catch(_) {}
           Vision.grabFrame().then(image => {
+            console.log('👁️  grabFrame succeeded, image length=', image ? image.length : 0);
             ws.send(JSON.stringify({
               event: 'snapshot',
               req_id: d.req_id,
               image: image,
             }));
+            console.log('👁️  snapshot sent');
           }).catch(err => {
+            console.warn('👁️  grabFrame failed:', err && err.name, err && err.message);
             let code = 'grab_failed';
             if (err && err.message === 'vision_off') code = 'vision_off';
             if (err && err.name === 'NotAllowedError') {
@@ -1141,6 +1179,7 @@
               req_id: d.req_id,
               error: code,
             }));
+            console.log('👁️  snapshot error sent:', code);
           });
           break;
       }

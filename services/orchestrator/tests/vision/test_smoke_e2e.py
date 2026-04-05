@@ -24,7 +24,7 @@ def integration(memory_db):
 
 async def test_snapshot_then_recall(integration, monkeypatch):
     # Mock the VLM
-    async def fake_describe(image_b64, model, host, timeout_s):
+    async def fake_describe(image_b64, model, host, timeout_s, user_question=None):
         assert image_b64 == "fakeb64image"
         return "a small potted plant on a wooden windowsill, afternoon light"
     monkeypatch.setattr("integrations.vision.vlm.describe", fake_describe)

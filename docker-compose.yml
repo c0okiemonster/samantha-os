@@ -26,6 +26,9 @@ services:
       - PROACTIVE_INTERVAL=120
       - LOG_LEVEL=info
       - TZ=${TZ:-Europe/Stockholm}
+      - VLM_MODEL=${VLM_MODEL:-moondream}
+      - VLM_HOST=${VLM_HOST:-host.docker.internal:11434}
+      - VLM_TIMEOUT_S=${VLM_TIMEOUT_S:-15}
       # Optional integration credentials (from .env file)
       - MS365_CLIENT_ID=${MS365_CLIENT_ID:-}
       - MS365_CLIENT_SECRET=${MS365_CLIENT_SECRET:-}

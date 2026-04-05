@@ -3,7 +3,10 @@ Pure functions, no I/O."""
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+import dateparser
 
 from .models import ParseError, Recurrence  # noqa: F401 (ParseError used in Task 8)
 
@@ -52,3 +55,29 @@ def parse_recurrence(text: str) -> tuple[Optional[Recurrence], str]:
 
 def _collapse_spaces(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
+
+
+# ─── Time parsing ──────────────────────────────────────────────────────
+
+
+def parse_when(text: str, tz: str = "Europe/Stockholm") -> datetime:
+    """Parse a natural-language time phrase into a UTC datetime.
+    Raises ParseError if text is empty or unparseable."""
+    if not text or not text.strip():
+        raise ParseError("empty time phrase")
+
+    dt = dateparser.parse(
+        text,
+        settings={
+            "TIMEZONE": tz,
+            "RETURN_AS_TIMEZONE_AWARE": True,
+            "PREFER_DATES_FROM": "future",
+            "RELATIVE_BASE": datetime.now(),
+        },
+    )
+    if dt is None:
+        raise ParseError(f"could not parse time from: {text!r}")
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)

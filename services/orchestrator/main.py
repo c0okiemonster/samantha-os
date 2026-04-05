@@ -7,6 +7,8 @@ import os
 import asyncio
 import json
 import logging
+import re
+import secrets
 import time
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -28,6 +30,9 @@ from integrations.news_integration import NewsIntegration
 from integrations.tasks import TasksIntegration
 from integrations.tasks.chime import ensure_chime_exists
 from integrations.tasks.scheduler import run as run_tasks_scheduler
+from integrations.vision import VisionIntegration
+from integrations.vision.models import SnapshotError
+from integrations.vision.store import VisionStore
 from intents import IntentRouter
 
 # Optional integrations (imported conditionally)
@@ -80,6 +85,8 @@ class SamanthaState:
         # Phase 3
         self.memory: ConversationMemory | None = None
         self.tasks_integration: TasksIntegration | None = None
+        self.vision_integration: VisionIntegration | None = None
+        self.pending_snapshots: dict = {}  # req_id → asyncio.Future[str]
         self.summarizer = ConversationSummarizer()
         self.proactive = ProactiveBehavior()
         self._session_start: str = datetime.now().isoformat()
@@ -139,6 +146,11 @@ class SamanthaState:
         # NOTE: Intentionally do NOT call self.registry.enable("tasks", ...) here —
         # the lifespan hook will wire its store to share the memory DB connection
         # (avoiding a second sqlite handle on the same file).
+
+        vision = VisionIntegration()
+        self.registry.register(vision)
+        self.vision_integration = vision
+        # NOTE: initialize() is a no-op; the lifespan hook wires store + llm_chat.
 
         news = NewsIntegration()
         self.registry.register(news)
@@ -295,6 +307,16 @@ async def lifespan(app: FastAPI):
                 tz=os.environ.get("TZ", "Europe/Stockholm"),
             )
         )
+
+    # Wire VisionIntegration to share the memory DB connection + llm_chat
+    if state.vision_integration is not None and state.memory is not None:
+        state.vision_integration.conn = state.memory.conn
+        state.vision_integration.store = VisionStore(state.memory.conn)
+        state.vision_integration.llm_chat = llm_chat
+        from integrations import IntegrationStatus
+        state.vision_integration.status = IntegrationStatus.CONFIGURED
+        state.registry._enabled.add("vision")
+        logger.info("Vision integration wired to memory DB")
 
     # Start proactive polling
     task = asyncio.create_task(proactive_loop())
@@ -516,6 +538,91 @@ async def process_message(user_text: str) -> dict:
                     "result": {"spoken": spoken_text, "overlay": overlay_envelope},
                 }
 
+            if intent.integration_name == "vision":
+                # take_snapshot: round-trip through the browser for a frame.
+                # recall_observation: direct DB query, no frame needed.
+                image_b64 = None
+                if intent.action_name == "take_snapshot":
+                    fut = asyncio.get_event_loop().create_future()
+                    req_id = secrets.token_hex(4)
+                    state.pending_snapshots[req_id] = fut
+                    await state.broadcast({
+                        "event": "request_snapshot",
+                        "req_id": req_id,
+                    })
+                    try:
+                        image_b64 = await asyncio.wait_for(fut, timeout=5.0)
+                    except asyncio.TimeoutError:
+                        state.pending_snapshots.pop(req_id, None)
+                        spoken = (
+                            "Hmm, I couldn't get my eyes open in time. "
+                            "Want me to try again?"
+                        )
+                        state.add_message("user", user_text)
+                        state.add_message("assistant", spoken)
+                        return {
+                            "text": spoken, "tts_text": spoken,
+                            "mood": state.personality.mood,
+                            "action": intent.action_name,
+                            "result": {"spoken": spoken, "overlay": None},
+                        }
+                    except SnapshotError as e:
+                        state.pending_snapshots.pop(req_id, None)
+                        messages = {
+                            "vision_off":
+                                "My eyes are closed right now. Enable "
+                                "vision in the top-right corner if you'd "
+                                "like me to see.",
+                            "permission_revoked":
+                                "My eyes just closed — it looks like "
+                                "camera access was revoked.",
+                            "grab_failed":
+                                "I couldn't quite focus there — try again?",
+                        }
+                        spoken = messages.get(str(e), messages["grab_failed"])
+                        state.add_message("user", user_text)
+                        state.add_message("assistant", spoken)
+                        return {
+                            "text": spoken, "tts_text": spoken,
+                            "mood": state.personality.mood,
+                            "action": intent.action_name,
+                            "result": {"spoken": spoken, "overlay": None},
+                        }
+                    finally:
+                        state.pending_snapshots.pop(req_id, None)
+
+                vision_result = await state.vision_integration.handle_action(
+                    intent.action_name, user_text, image_b64=image_b64
+                )
+                spoken_text = vision_result.spoken
+                state.add_message("user", user_text)
+                state.add_message("assistant", spoken_text)
+                state.personality.update_mood(analysis)
+
+                # Background fact extraction from the raw description.
+                # Only if we actually captured something (observation_id set).
+                if vision_result.observation_id is not None:
+                    row = state.memory.conn.execute(
+                        "SELECT raw_description FROM observations WHERE id = ?",
+                        (vision_result.observation_id,),
+                    ).fetchone()
+                    if row:
+                        asyncio.create_task(
+                            _extract_memories(user_text, row["raw_description"])
+                        )
+
+                return {
+                    "text": spoken_text,
+                    "tts_text": spoken_text,
+                    "mood": state.personality.mood,
+                    "action": intent.action_name,
+                    "result": {
+                        "spoken": spoken_text,
+                        "observation_id": vision_result.observation_id,
+                        "overlay": None,
+                    },
+                }
+
             result = await intg.execute(intent.action_name, intent.parameters)
 
             # Ask LLM to format the result conversationally
@@ -564,8 +671,6 @@ async def process_message(user_text: str) -> dict:
     state.personality.update_mood(analysis)
     return {"text": _strip_emotion_tags(_clean_response(response)), "tts_text": _clean_response(response), "mood": state.personality.mood}
 
-
-import re
 
 # Emotion tags that Orpheus TTS can render as audio
 _EMOTION_TAG_RE = re.compile(r'<(laugh|chuckle|sigh|gasp|cough|sniffle|yawn|groan)>')
@@ -691,6 +796,7 @@ async def reset_all():
             DELETE FROM reminders;
             DELETE FROM schedule_events;
             DELETE FROM list_items;
+            DELETE FROM observations;
             DELETE FROM memories;
             DELETE FROM episodes_fts;
             DELETE FROM facts_fts;
@@ -873,6 +979,15 @@ async def ws_endpoint(ws: WebSocket):
                     text,
                     result.get("tts_text", result["text"])
                 ))
+
+            elif data.get("event") == "snapshot":
+                req_id = data.get("req_id")
+                fut = state.pending_snapshots.get(req_id)
+                if fut is not None and not fut.done():
+                    if "error" in data:
+                        fut.set_exception(SnapshotError(data["error"]))
+                    else:
+                        fut.set_result(data.get("image", ""))
 
     except WebSocketDisconnect:
         state.clients.remove(ws)

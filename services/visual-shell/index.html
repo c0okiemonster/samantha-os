@@ -179,18 +179,29 @@
       font-size: 1rem; font-weight: 400; color: var(--burgundy); line-height: 1.4;
     }
 
-    /* Clock — dark text */
+    /* Clock — enlarged, darker (mockup B) */
     #clock {
-      position: fixed; top: 2.5rem; left: 2.5rem; z-index: 18; opacity: 0.5;
+      position: fixed; top: 2rem; left: 2rem; z-index: 18;
     }
     #clock .time {
-      font-family: 'Outfit', sans-serif; font-size: 1rem;
-      font-weight: 200; color: var(--burgundy); letter-spacing: 0.05em;
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.2rem; font-weight: 300;
+      color: #3a0f1c; opacity: 0.92;
+      letter-spacing: 0.02em; line-height: 1;
+    }
+    #clock .day {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.8rem; font-weight: 500;
+      color: #3a0f1c; opacity: 0.85;
+      letter-spacing: 0.22em; text-transform: uppercase;
+      margin-top: 6px;
     }
     #clock .date {
-      font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 300;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--burgundy-soft); margin-top: 2px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.75rem; font-weight: 400;
+      color: #5c2030; opacity: 0.75;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      margin-top: 2px;
     }
 
     /* Dev input */
@@ -211,12 +222,14 @@
     #dev-bar input::placeholder { color: var(--cream-ghost); font-weight: 200; }
     #dev-bar input:focus { border-color: rgba(255,245,237,0.5); }
 
-    /* Samantha name — dark text */
+    /* Identity — nameplate, enlarged (mockup B) */
     #identity {
-      position: fixed; top: 2.5rem; right: 2.5rem; z-index: 18; opacity: 0.3;
-      font-family: 'Cormorant Garamond', serif; font-size: 0.85rem;
-      font-weight: 300; font-style: italic; color: var(--burgundy-soft);
-      letter-spacing: 0.1em;
+      position: fixed; top: 2rem; right: 2rem; z-index: 18;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.35rem; font-weight: 400;
+      font-style: italic;
+      color: #3a0f1c; opacity: 0.85;
+      letter-spacing: 0.08em;
     }
 
     /* Boot screen — same gradient, dark text */
@@ -333,6 +346,7 @@
 
   <div id="clock">
     <div class="time" id="clock-time"></div>
+    <div class="day" id="clock-day"></div>
     <div class="date" id="clock-date"></div>
   </div>
   <div id="identity">Samantha</div>
@@ -671,7 +685,8 @@
     function clockTick() {
       const n=new Date();
       $('clock-time').textContent=n.getHours().toString().padStart(2,'0')+':'+n.getMinutes().toString().padStart(2,'0');
-      $('clock-date').textContent=n.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+      $('clock-day').textContent=n.toLocaleDateString('en-US',{weekday:'long'});
+      $('clock-date').textContent=n.toLocaleDateString('en-US',{day:'2-digit',month:'long',year:'numeric'});
     }
     setInterval(clockTick,10000); clockTick();
 

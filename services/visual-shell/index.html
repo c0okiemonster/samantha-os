@@ -776,8 +776,42 @@
     }
     setInterval(clockTick,10000); clockTick();
 
-    // ─── Chime stub (filled in Task 17) ──────────────────────────────
-    function playChime() { /* filled in Task 17 */ }
+    // ─── Chime ───────────────────────────────────────────────────────
+    const Chime = (() => {
+      let audioCtx = null;
+      let buffer = null;
+
+      async function load() {
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const url = `http://${location.hostname}:8000/static/chime.wav`;
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`chime fetch: ${resp.status}`);
+          const arr = await resp.arrayBuffer();
+          buffer = await audioCtx.decodeAudioData(arr);
+          console.log('🔔 chime loaded');
+        } catch (e) {
+          console.warn('chime load failed', e);
+        }
+      }
+
+      function play() {
+        if (!audioCtx || !buffer) return;
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buffer;
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0.6;
+        src.connect(gain).connect(audioCtx.destination);
+        src.start();
+      }
+
+      return { load, play };
+    })();
+
+    function playChime() { Chime.play(); }
 
     // ─── Overlay card component ──────────────────────────────────────
     const Overlay = (() => {
@@ -1058,6 +1092,7 @@
       document.addEventListener('keydown',tryAudio,{once:true});
       await initAudio();
 
+      Chime.load();
       connectWS();
 
       await sleep(2000);

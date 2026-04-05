@@ -25,6 +25,9 @@ from integrations.weather_integration import WeatherIntegration
 from integrations.search_integration import WebSearchIntegration
 from integrations.notes_integration import NotesIntegration
 from integrations.news_integration import NewsIntegration
+from integrations.tasks import TasksIntegration
+from integrations.tasks.chime import ensure_chime_exists
+from integrations.tasks.scheduler import run as run_tasks_scheduler
 from intents import IntentRouter
 
 # Optional integrations (imported conditionally)
@@ -76,6 +79,7 @@ class SamanthaState:
         self._personality_config: dict = {}
         # Phase 3
         self.memory: ConversationMemory | None = None
+        self.tasks_integration: TasksIntegration | None = None
         self.summarizer = ConversationSummarizer()
         self.proactive = ProactiveBehavior()
         self._session_start: str = datetime.now().isoformat()
@@ -128,6 +132,13 @@ class SamanthaState:
         self.registry.register(notes)
         if intg_config.get("notes", {}).get("enabled", True):
             await self.registry.enable("notes", intg_config.get("notes", {}))
+
+        tasks = TasksIntegration()
+        self.registry.register(tasks)
+        self.tasks_integration = tasks
+        # NOTE: Intentionally do NOT call self.registry.enable("tasks", ...) here —
+        # the lifespan hook will wire its store to share the memory DB connection
+        # (avoiding a second sqlite handle on the same file).
 
         news = NewsIntegration()
         self.registry.register(news)
@@ -254,10 +265,43 @@ state = SamanthaState()
 async def lifespan(app: FastAPI):
     state.load_config()
     await state.init_integrations()
+
+    # Wire TasksIntegration to share the memory DB connection
+    tasks_scheduler_task = None
+    if state.tasks_integration is not None and state.memory is not None:
+        from integrations.tasks.store import TasksStore
+        from integrations import IntegrationStatus
+        state.tasks_integration.conn = state.memory.conn
+        state.tasks_integration.store = TasksStore(state.memory.conn)
+        state.tasks_integration.tz = os.environ.get("TZ", "Europe/Stockholm")
+        state.tasks_integration.status = IntegrationStatus.CONFIGURED
+        state.registry._enabled.add("tasks")
+        logger.info("Tasks integration wired to memory DB")
+
+        # Generate chime if missing
+        chime_path = os.path.join(STATIC_DIR, "chime.wav")
+        ensure_chime_exists(chime_path)
+
+        # Launch the tasks scheduler
+        async def _emit_overlay(envelope: dict):
+            await state.broadcast(envelope)
+
+        tasks_scheduler_task = asyncio.create_task(
+            run_tasks_scheduler(
+                store=state.tasks_integration.store,
+                emit=_emit_overlay,
+                poll_interval_s=15,
+                heads_up_window_min=10,
+                tz=os.environ.get("TZ", "Europe/Stockholm"),
+            )
+        )
+
     # Start proactive polling
     task = asyncio.create_task(proactive_loop())
     logger.info("🌸 Samantha is awake")
     yield
+    if tasks_scheduler_task is not None:
+        tasks_scheduler_task.cancel()
     task.cancel()
     # Save conversation summary on shutdown
     if state.memory and state.conversation:
@@ -286,6 +330,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Samantha Orchestrator", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+from fastapi.staticfiles import StaticFiles
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+os.makedirs(STATIC_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 # ─── Proactive Loop ─────────────────────
@@ -426,6 +475,12 @@ async def synthesize(text: str) -> bytes:
 
 async def process_message(user_text: str) -> dict:
     """Full pipeline: intent detection → action or LLM → response."""
+    # Translate non-English input so the intent router, memory, and LLM
+    # all see consistent English. The original utterance is logged by
+    # maybe_translate when a translation happens.
+    from preprocess import maybe_translate
+    user_text, _lang = await maybe_translate(user_text, llm_chat)
+
     analysis = state.personality.analyze_input(user_text)
 
     await state.refresh_memory_context(user_text)
@@ -433,11 +488,34 @@ async def process_message(user_text: str) -> dict:
     # Check for integration intent
     intent = state.router.route(user_text) if state.router else None
 
-    if intent and intent.confidence > 0.5:
+    # Tasks actions have very specific trigger words — a lower threshold is
+    # safe here. Other integrations stay at 0.5 to avoid false positives.
+    _min_confidence = 0.3 if (intent and intent.integration_name == "tasks") else 0.5
+    if intent and intent.confidence > _min_confidence:
         # Execute integration action
         logger.info(f"🔧 Action: {intent.integration_name}.{intent.action_name}")
         intg = state.registry.get(intent.integration_name)
         if intg:
+            # Tasks integration needs the raw user text (the generic IntentRouter
+            # _extract_params doesn't populate a "text" key). Call handle_action
+            # directly and short-circuit the LLM reformatting path.
+            if intent.integration_name == "tasks":
+                task_result = await intg.handle_action(intent.action_name, user_text)
+                spoken_text = task_result.spoken
+                overlay_envelope = task_result.overlay.to_envelope() if task_result.overlay else None
+                state.add_message("user", user_text)
+                state.add_message("assistant", spoken_text)
+                state.personality.update_mood(analysis)
+                if overlay_envelope:
+                    await state.broadcast(overlay_envelope)
+                return {
+                    "text": spoken_text,
+                    "tts_text": spoken_text,
+                    "mood": state.personality.mood,
+                    "action": intent.action_name,
+                    "result": {"spoken": spoken_text, "overlay": overlay_envelope},
+                }
+
             result = await intg.execute(intent.action_name, intent.parameters)
 
             # Ask LLM to format the result conversationally
@@ -611,6 +689,8 @@ async def reset_all():
             DELETE FROM news_digests;
             DELETE FROM notes;
             DELETE FROM reminders;
+            DELETE FROM schedule_events;
+            DELETE FROM list_items;
             DELETE FROM memories;
             DELETE FROM episodes_fts;
             DELETE FROM facts_fts;
@@ -781,6 +861,7 @@ async def ws_endpoint(ws: WebSocket):
 
             elif data.get("event") == "text_input":
                 text = data["text"]
+                logger.info(f"💬 User (ws): {text}")
                 await ws.send_json({"event": "user_speaking", "text": text})
                 await ws.send_json({"event": "thinking"})
                 result = await process_message(text)

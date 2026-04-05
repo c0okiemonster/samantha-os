@@ -179,18 +179,29 @@
       font-size: 1rem; font-weight: 400; color: var(--burgundy); line-height: 1.4;
     }
 
-    /* Clock — dark text */
+    /* Clock — enlarged, darker (mockup B) */
     #clock {
-      position: fixed; top: 2.5rem; left: 2.5rem; z-index: 18; opacity: 0.5;
+      position: fixed; top: 2rem; left: 2rem; z-index: 18;
     }
     #clock .time {
-      font-family: 'Outfit', sans-serif; font-size: 1rem;
-      font-weight: 200; color: var(--burgundy); letter-spacing: 0.05em;
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.2rem; font-weight: 300;
+      color: #3a0f1c; opacity: 0.92;
+      letter-spacing: 0.02em; line-height: 1;
+    }
+    #clock .day {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.8rem; font-weight: 500;
+      color: #3a0f1c; opacity: 0.85;
+      letter-spacing: 0.22em; text-transform: uppercase;
+      margin-top: 6px;
     }
     #clock .date {
-      font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 300;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--burgundy-soft); margin-top: 2px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.75rem; font-weight: 400;
+      color: #5c2030; opacity: 0.75;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      margin-top: 2px;
     }
 
     /* Dev input */
@@ -211,12 +222,14 @@
     #dev-bar input::placeholder { color: var(--cream-ghost); font-weight: 200; }
     #dev-bar input:focus { border-color: rgba(255,245,237,0.5); }
 
-    /* Samantha name — dark text */
+    /* Identity — nameplate, enlarged (mockup B) */
     #identity {
-      position: fixed; top: 2.5rem; right: 2.5rem; z-index: 18; opacity: 0.3;
-      font-family: 'Cormorant Garamond', serif; font-size: 0.85rem;
-      font-weight: 300; font-style: italic; color: var(--burgundy-soft);
-      letter-spacing: 0.1em;
+      position: fixed; top: 2rem; right: 2rem; z-index: 18;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.35rem; font-weight: 400;
+      font-style: italic;
+      color: #3a0f1c; opacity: 0.85;
+      letter-spacing: 0.08em;
     }
 
     /* Boot screen — same gradient, dark text */
@@ -309,6 +322,84 @@
       .speech-bubble .speech-text { font-size: 1.3rem; }
       #clock .time { font-size: 0.85rem; }
     }
+
+    /* ─── Overlay card ──────────────────────────────────────────────── */
+    #overlay-card {
+      position: fixed;
+      top: 5.5rem;
+      right: 1.6rem;
+      width: 280px;
+      padding: 1.2rem 1.4rem 1.1rem;
+      background: rgba(254,245,237,0.58);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border: 1px solid rgba(92,32,48,0.08);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(58,15,28,0.18);
+      color: #3a0f1c;
+      z-index: 40;
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
+                  transform 0.7s cubic-bezier(0.16,1,0.3,1);
+    }
+    #overlay-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    #overlay-card .kicker {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.58rem; font-weight: 500;
+      letter-spacing: 0.22em; text-transform: uppercase;
+      color: #7a3a48;
+      margin-bottom: 0.45rem;
+    }
+    #overlay-card .title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.45rem; font-weight: 400;
+      line-height: 1.25; color: #3a0f1c;
+    }
+    #overlay-card .when {
+      margin-top: 0.5rem;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem; font-weight: 400;
+      color: #5c2030; opacity: 0.8;
+      letter-spacing: 0.08em;
+    }
+    #overlay-card ul {
+      list-style: none; margin-top: 0.6rem; padding: 0;
+    }
+    #overlay-card li {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.05rem;
+      padding: 0.25rem 0;
+      color: #3a0f1c;
+      border-bottom: 1px solid rgba(92,32,48,0.08);
+    }
+    #overlay-card li.new {
+      background: linear-gradient(90deg, rgba(255,220,180,0.5), transparent);
+      padding-left: 0.5rem; border-radius: 4px;
+      border-bottom-color: transparent;
+      font-weight: 500;
+    }
+    #overlay-card li.new::before { content: '✦ '; color: #c45878; }
+    #overlay-card .progress {
+      height: 2px;
+      background: rgba(92,32,48,0.15);
+      border-radius: 2px;
+      margin-top: 0.9rem;
+      overflow: hidden;
+    }
+    #overlay-card .progress .bar {
+      display: block;
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #5c2030, #9a5a68);
+      transform-origin: left;
+      transform: scaleX(1);
+    }
   </style>
 </head>
 <body>
@@ -333,6 +424,7 @@
 
   <div id="clock">
     <div class="time" id="clock-time"></div>
+    <div class="day" id="clock-day"></div>
     <div class="date" id="clock-date"></div>
   </div>
   <div id="identity">Samantha</div>
@@ -343,6 +435,14 @@
   </div>
 
   <div id="cards-container"></div>
+
+  <div id="overlay-card" aria-live="polite">
+    <div class="kicker"></div>
+    <div class="title"></div>
+    <div class="when"></div>
+    <ul class="items"></ul>
+    <div class="progress"><span class="bar"></span></div>
+  </div>
 
   <div id="speech-area">
     <div class="typing-dots" id="typing"><span></span><span></span><span></span></div>
@@ -671,15 +771,194 @@
     function clockTick() {
       const n=new Date();
       $('clock-time').textContent=n.getHours().toString().padStart(2,'0')+':'+n.getMinutes().toString().padStart(2,'0');
-      $('clock-date').textContent=n.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+      $('clock-day').textContent=n.toLocaleDateString('en-US',{weekday:'long'});
+      $('clock-date').textContent=n.toLocaleDateString('en-US',{day:'2-digit',month:'long',year:'numeric'});
     }
     setInterval(clockTick,10000); clockTick();
+
+    // ─── Chime ───────────────────────────────────────────────────────
+    const Chime = (() => {
+      let audioCtx = null;
+      let buffer = null;
+      let unlocked = false;
+
+      async function load() {
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const url = `http://${location.hostname}:8000/static/chime.wav`;
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`chime fetch: ${resp.status}`);
+          const arr = await resp.arrayBuffer();
+          buffer = await audioCtx.decodeAudioData(arr);
+          console.log('🔔 chime loaded (state=' + audioCtx.state + ')');
+        } catch (e) {
+          console.warn('chime load failed', e);
+        }
+      }
+
+      // Chrome autoplay policy: AudioContext created before a user gesture
+      // starts in 'suspended' state. Resume on the first click/keypress.
+      function attachUnlock() {
+        const unlock = () => {
+          if (!audioCtx || unlocked) return;
+          audioCtx.resume().then(() => {
+            unlocked = true;
+            console.log('🔔 chime unlocked');
+          }).catch(() => {});
+          document.removeEventListener('click', unlock);
+          document.removeEventListener('keydown', unlock);
+          document.removeEventListener('touchstart', unlock);
+        };
+        document.addEventListener('click', unlock, { once: false });
+        document.addEventListener('keydown', unlock, { once: false });
+        document.addEventListener('touchstart', unlock, { once: false });
+      }
+
+      function play() {
+        if (!audioCtx || !buffer) {
+          console.warn('chime play: not ready (ctx=' + !!audioCtx + ', buf=' + !!buffer + ')');
+          return;
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buffer;
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0.6;
+        src.connect(gain).connect(audioCtx.destination);
+        src.start();
+      }
+
+      return { load, play, attachUnlock };
+    })();
+
+    function playChime() { Chime.play(); }
+
+    // ─── Overlay card component ──────────────────────────────────────
+    const Overlay = (() => {
+      const el = document.getElementById('overlay-card');
+      const kickerEl = el.querySelector('.kicker');
+      const titleEl = el.querySelector('.title');
+      const whenEl = el.querySelector('.when');
+      const listEl = el.querySelector('.items');
+      const bar = el.querySelector('.progress .bar');
+
+      let dismissTimer = null;
+      let progressStart = 0;
+      let progressDuration = 25000;
+      let remainingOnPause = null;
+      const queue = [];
+      let busy = false;
+
+      function kickerText(payload) {
+        if (payload.kind === 'list' && payload.list_name) {
+          return payload.list_name;
+        }
+        if (payload.kind === 'schedule_heads_up') return 'Up next';
+        return payload.kind;
+      }
+
+      function render(payload) {
+        kickerEl.textContent = kickerText(payload);
+        titleEl.textContent = payload.title || '';
+        whenEl.textContent = payload.when || '';
+        whenEl.style.display = payload.when ? '' : 'none';
+
+        listEl.innerHTML = '';
+        if (payload.items && Array.isArray(payload.items)) {
+          payload.items.forEach((text, idx) => {
+            const li = document.createElement('li');
+            li.textContent = text;
+            if (idx === payload.highlight_index) li.classList.add('new');
+            listEl.appendChild(li);
+          });
+          listEl.style.display = '';
+        } else {
+          listEl.style.display = 'none';
+        }
+
+        bar.style.transition = 'none';
+        bar.style.transform = 'scaleX(1)';
+      }
+
+      function startProgress(durationMs) {
+        progressDuration = durationMs;
+        progressStart = performance.now();
+        void bar.offsetWidth;
+        bar.style.transition = `transform ${durationMs}ms linear`;
+        bar.style.transform = 'scaleX(0)';
+      }
+
+      function scheduleDismiss(ms) {
+        clearTimeout(dismissTimer);
+        dismissTimer = setTimeout(dismiss, ms);
+      }
+
+      function show(payload) {
+        if (busy) {
+          queue.push(payload);
+          return;
+        }
+        busy = true;
+        render(payload);
+        el.classList.add('visible');
+
+        if (payload.chime) playChime();
+
+        const duration = payload.duration_ms || 25000;
+        startProgress(duration);
+        scheduleDismiss(duration);
+      }
+
+      function dismiss() {
+        clearTimeout(dismissTimer);
+        dismissTimer = null;
+        el.classList.remove('visible');
+        setTimeout(() => {
+          busy = false;
+          const next = queue.shift();
+          if (next) {
+            setTimeout(() => show(next), 400);
+          }
+        }, 700);
+      }
+
+      el.addEventListener('mouseenter', () => {
+        if (!dismissTimer) return;
+        clearTimeout(dismissTimer);
+        dismissTimer = null;
+        const elapsed = performance.now() - progressStart;
+        remainingOnPause = Math.max(0, progressDuration - elapsed);
+        const computed = getComputedStyle(bar).transform;
+        bar.style.transition = 'none';
+        bar.style.transform = computed;
+      });
+      el.addEventListener('mouseleave', () => {
+        if (remainingOnPause == null) return;
+        const extended = remainingOnPause + 5000;
+        progressStart = performance.now();
+        progressDuration = extended;
+        void bar.offsetWidth;
+        bar.style.transition = `transform ${extended}ms linear`;
+        bar.style.transform = 'scaleX(0)';
+        scheduleDismiss(extended);
+        remainingOnPause = null;
+      });
+      el.addEventListener('click', dismiss);
+
+      return { show };
+    })();
 
     // ─── WEBSOCKET ───────────────────────────
     function connectWS() {
       ws = new WebSocket(CFG.wsUrl);
       ws.onopen=()=>{console.log('🌸 Connected');setStatus('idle');setMood('calm');};
-      ws.onmessage=e=>{try{handleEvt(JSON.parse(e.data));}catch(x){}};
+      ws.onmessage=e=>{
+        let d;
+        try { d = JSON.parse(e.data); } catch(x) { console.error('WS parse error', x); return; }
+        try { handleEvt(d); } catch(x) { console.error('handleEvt error', x, 'for event:', d && d.event); }
+      };
       ws.onclose=()=>setTimeout(connectWS,CFG.reconnect);
       ws.onerror=()=>ws.close();
     }
@@ -691,8 +970,6 @@
         case 'thinking': setMood('thinking');setStatus('thinking');showThinking(); break;
         case 'samantha_speaking':
           hideThinking();showSpeech('Samantha',d.text);
-          // Clear any queued audio from previous response
-          audioQueue = [];
           if(d.audio){
             setMood('speaking');setStatus('speaking');
             playB64(d.audio);
@@ -710,6 +987,9 @@
           break;
         case 'card': showCard(d.title||'',d.body||''); break;
         case 'reset': speech.classList.remove('visible');hideThinking();setMood('calm');setStatus('idle'); break;
+        case 'overlay_card':
+          Overlay.show(d);
+          break;
       }
     }
     function sendText(t) {
@@ -836,6 +1116,8 @@
       document.addEventListener('keydown',tryAudio,{once:true});
       await initAudio();
 
+      Chime.load();
+      Chime.attachUnlock();
       connectWS();
 
       await sleep(2000);

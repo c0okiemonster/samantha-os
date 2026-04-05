@@ -25,6 +25,7 @@ services:
       - SETTINGS_FILE=/app/config/settings.yml
       - PROACTIVE_INTERVAL=120
       - LOG_LEVEL=info
+      - TZ=${TZ:-Europe/Stockholm}
       # Optional integration credentials (from .env file)
       - MS365_CLIENT_ID=${MS365_CLIENT_ID:-}
       - MS365_CLIENT_SECRET=${MS365_CLIENT_SECRET:-}

@@ -38,12 +38,12 @@ She's not a tool. She's a companion you can spin up in Docker.
 
 <div align="center">
 
-| 🧠 **Brain** | 🗣️ **Voice** | 💾 **Memory** | 🌍 **World** |
-|:---:|:---:|:---:|:---:|
-| gemma2:9b via Ollama | Kokoro KPipeline | Entity-aware SQLite | News + Weather |
-| Personality engine | Custom voice blend | Semantic embeddings | DuckDuckGo search |
-| Mood detection | 0.90x warm & slow | Conversation threads | Date/time aware |
-| Emotional arc | Natural prosody | FTS5 full-text search | RSS translation |
+| 🧠 **Brain** | 🗣️ **Voice** | 💾 **Memory** | 🌍 **World** | 🗓️ **Tasks** |
+|:---:|:---:|:---:|:---:|:---:|
+| gemma2:9b via Ollama | Kokoro KPipeline | Entity-aware SQLite | News + Weather | Reminders |
+| Personality engine | Custom voice blend | Semantic embeddings | DuckDuckGo search | Schedule events |
+| Mood detection | 0.90x warm & slow | Conversation threads | Date/time aware | Named lists |
+| Emotional arc | Natural prosody | FTS5 full-text search | Swedish → English input | Background scheduler |
 
 </div>
 
@@ -67,6 +67,15 @@ She's not a tool. She's a companion you can spin up in Docker.
 - **Weather** — knows conditions in your area via Open-Meteo (no API key)
 - **Web search** — DuckDuckGo for current information
 - **Date/time aware** — knows exactly what day it is
+
+### Reminders, Schedules & Lists
+- **Time-anchored reminders** — "Remind me to call mom at 5pm" → silent confirmation card now, soft chime + translucent card at 5pm
+- **Calendar events** — "Meeting with Jussi Friday at 3pm" → two cards: a 10-min heads-up and a start-time card
+- **Recurring routines** — "Every weekday at 8 remind me to take vitamins" → fires Mon–Fri, auto-advances after each occurrence
+- **Named lists** — "Add milk to the shopping list", "Add The Shining to the movies list". Smart defaults: `shopping` and `todo` are inferred from phrasing ("remind me to buy X", "I should X")
+- **Beautiful overlay cards** — translucent cream cards slide in from the right, auto-dismiss after 25s, hover to pause, click to dismiss
+- **Background scheduler** — asyncio loop in the orchestrator polls every 15s; reminders and events survive restarts (stored in SQLite, not in-memory)
+- **Swedish input support** — say or type in Swedish; input is auto-detected and translated to English before routing. She responds in English (TTS is English-only for now)
 
 ### Proactive
 - Auto-greets when you connect (introduces herself on first meeting)
@@ -373,6 +382,64 @@ curl http://localhost:8000/memory | jq
 #   "entities": [...]
 # }
 ```
+
+---
+
+## How Reminders, Schedules & Lists Work
+
+### What you can say
+
+| Intent | Example phrasings |
+|---|---|
+| One-shot reminder | *"Remind me to call mom at 5pm"*, *"Remind me in 20 minutes to check the oven"*, *"Remind me tomorrow at 9 to send the report"* |
+| Calendar event | *"Meeting with Jussi Friday at 3pm"*, *"Dentist Tuesday at 10am"*, *"Call with the team tomorrow at 2"* |
+| Recurring | *"Every weekday at 8 remind me to take vitamins"*, *"Every Monday at 9 planning session"*, *"Every sunday evening reflect"* |
+| Add to a list | *"Add milk to the shopping list"*, *"Add The Shining to the movies list"*, *"Remind me to buy bread"* (auto → shopping), *"I should refactor memory"* (auto → todo) |
+| Show a list | *"What's on my shopping list?"*, *"Show me my todo"* |
+| Show schedule | *"What's next?"*, *"What's on my schedule today?"* |
+| Cancel last reminder | *"Cancel that"*, *"Forget the last reminder"* |
+
+Swedish also works: *"påminn mig att ringa mamma klockan 17"*, *"lägg till smör på inköpslistan"*.
+
+### How it actually fires
+
+A dedicated asyncio background task is launched in the orchestrator's FastAPI lifespan on startup:
+
+```
+services/orchestrator/integrations/tasks/scheduler.py
+```
+
+It loops every 15 seconds. On each tick it:
+1. Queries `reminders WHERE trigger_at <= now AND fired_at IS NULL AND cancelled_at IS NULL` → emits a chime + overlay card for each, marks `fired_at = now`.
+2. Queries `schedule_events` for any whose `start_at` is within the next 10 minutes AND haven't had a heads-up yet → emits a heads-up card, marks `heads_up_fired_at`.
+3. Queries `schedule_events WHERE start_at <= now AND fired_at IS NULL` → emits the start-time card. For recurring events, advances `start_at` to the next occurrence (daily / weekdays skipping weekends / weekly on the same day) and resets the fired flags for the next cycle.
+
+Max drift between the trigger time and the card appearing is **15 seconds**.
+
+**Everything is persisted.** Reminders, schedule events, and list items live in `config/samantha_memory.db` in three tables (`reminders`, `schedule_events`, `list_items`). Restart the orchestrator — pending items still fire on the next tick. Close your laptop lid — overdue items fire back-to-back on wake.
+
+### Inspecting state by hand
+
+```bash
+# All pending reminders (inside the orchestrator container)
+docker compose exec orchestrator sqlite3 /app/config/samantha_memory.db \
+  "SELECT id, text, trigger_at, fired_at FROM reminders ORDER BY trigger_at;"
+
+# Schedule events
+docker compose exec orchestrator sqlite3 /app/config/samantha_memory.db \
+  "SELECT id, title, start_at, recurrence FROM schedule_events;"
+
+# List items
+docker compose exec orchestrator sqlite3 /app/config/samantha_memory.db \
+  "SELECT list_name, text FROM list_items WHERE done_at IS NULL;"
+
+# Confirm the scheduler is actually running
+docker compose logs orchestrator | grep "tasks scheduler started"
+```
+
+### Non-English input
+
+Any input you type or speak is language-detected with a fast heuristic (presence of `å/ä/ö` or two+ Swedish stopwords). If it's not English, a short LLM call translates it to English before anything else sees it — intent routing, memory storage, and the chat LLM all see a consistent English representation. On translation failure she falls back to the original text. She always responds in English since the TTS model is English-only.
 
 ---
 

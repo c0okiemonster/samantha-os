@@ -28,6 +28,25 @@ def test_noun_case_insensitive():
     assert _extract_recall_noun("WHEN DID YOU LAST SEE MY PLANT?") == "plant"
 
 
+def test_noun_wearing_not_sliced_to_ing():
+    """Regression: 'what was I wearing yesterday?' must NOT return 'ing'.
+    The lead regex needs word-boundary anchoring after the wear/see verbs
+    so '-ing' suffixes are consumed as part of the verb, not left behind."""
+    assert _extract_recall_noun("what was I wearing yesterday?") == ""
+
+
+def test_noun_wearing_with_real_noun_survives():
+    """After stripping 'what was I wearing', a real content noun survives."""
+    result = _extract_recall_noun("what was I wearing to the beach?")
+    assert result == "beach"
+
+
+def test_noun_looking_handled():
+    """'looking' must be stripped cleanly, not leave 'ing' behind."""
+    result = _extract_recall_noun("what was I looking at in the mug?")
+    assert result == "mug"
+
+
 # ── Integration handler tests ─────────────────────────────────────────
 
 @pytest.fixture

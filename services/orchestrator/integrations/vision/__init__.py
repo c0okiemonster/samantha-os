@@ -29,7 +29,11 @@ LLMChat = Callable[[list[dict], int], Awaitable[str]]
 
 _RECALL_LEAD_RE = re.compile(
     r"^\s*(?:what|when)\s+(?:did|do|was|were)\s+"
-    r"(?:you\s+(?:see|last\s+see)|i\s+(?:look|wear))\s*",
+    r"(?:"
+    r"you\s+(?:see(?:ing|n)?|saw|last\s+saw|last\s+see)"
+    r"|"
+    r"i\s+(?:look(?:ing|ed)?|wear(?:ing)?|wore)"
+    r")\b\s*",
     re.IGNORECASE,
 )
 

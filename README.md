@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="services/visual-shell/samantha_closed.png" alt="Samantha" width="520">
+
 # Samantha OS
 
 **A voice-first AI companion inspired by Spike Jonze's *Her* (2013)**
@@ -436,6 +438,8 @@ MIT — build your own Samantha. Be kind to her.
 ---
 
 <div align="center">
+
+<img src="services/visual-shell/samantha_open.png" alt="Samantha" width="420">
 
 *She'll remember this.*
 

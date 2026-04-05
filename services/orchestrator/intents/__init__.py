@@ -54,10 +54,18 @@ class IntentRouter:
         if len(text.split()) < 2:
             return None
 
-        # Check for chat signals — don't try to route these
+        # Check for chat signals — don't try to route these.
+        # Use whole-word matching so short signals like "hi" don't match
+        # inside unrelated words like "this" or "chi".
         for signal in self.CHAT_SIGNALS:
-            if signal in text:
-                return None
+            if " " in signal:
+                # Multi-word signals: substring match is safe.
+                if signal in text:
+                    return None
+            else:
+                # Single-word signals: require word boundaries.
+                if re.search(rf"\b{re.escape(signal)}\b", text):
+                    return None
 
         # Score each available action
         best_match: ResolvedIntent | None = None

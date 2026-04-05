@@ -84,6 +84,17 @@ def _row_to_reminder(row: sqlite3.Row) -> Reminder:
     )
 
 
+def _row_to_list_item(row: sqlite3.Row) -> ListItem:
+    return ListItem(
+        id=row["id"],
+        list_name=row["list_name"],
+        text=row["text"],
+        added_at=_parse(row["added_at"]),
+        done_at=_parse(row["done_at"]),
+        position=row["position"] or 0,
+    )
+
+
 def _row_to_schedule_event(row: sqlite3.Row) -> ScheduleEvent:
     rec_str = row["recurrence"]
     recurrence = Recurrence(rec_str) if rec_str else None
@@ -249,6 +260,51 @@ class TasksStore:
         self.conn.execute(
             "UPDATE schedule_events SET fired_at = ? WHERE id = ?",
             (_iso(now), event_id),
+        )
+        self.conn.commit()
+
+    # ─── Lists ──────────────────────────────────────────────────────────
+
+    def add_list_item(self, list_name: str, text: str) -> ListItem:
+        # Next position = max(position) + 1 among active items in this list
+        row = self.conn.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 AS next_pos "
+            "FROM list_items WHERE list_name = ?",
+            (list_name,),
+        ).fetchone()
+        next_pos = row["next_pos"]
+        cur = self.conn.execute(
+            "INSERT INTO list_items (list_name, text, position) VALUES (?, ?, ?)",
+            (list_name, text, next_pos),
+        )
+        self.conn.commit()
+        inserted = self.conn.execute(
+            "SELECT * FROM list_items WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+        return _row_to_list_item(inserted)
+
+    def get_list(self, list_name: str) -> list[ListItem]:
+        rows = self.conn.execute(
+            "SELECT * FROM list_items "
+            "WHERE list_name = ? AND done_at IS NULL "
+            "ORDER BY position ASC, id ASC",
+            (list_name,),
+        ).fetchall()
+        return [_row_to_list_item(r) for r in rows]
+
+    def is_duplicate(self, list_name: str, text: str) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM list_items "
+            "WHERE list_name = ? AND LOWER(text) = LOWER(?) AND done_at IS NULL "
+            "LIMIT 1",
+            (list_name, text),
+        ).fetchone()
+        return row is not None
+
+    def mark_list_item_done(self, item_id: int) -> None:
+        self.conn.execute(
+            "UPDATE list_items SET done_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (item_id,),
         )
         self.conn.commit()
 

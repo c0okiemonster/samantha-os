@@ -163,6 +163,18 @@ class ConversationMemory:
             );
             CREATE INDEX IF NOT EXISTS idx_list_active
                 ON list_items(list_name, position) WHERE done_at IS NULL;
+
+            -- Vision: observations captured from webcam snapshots
+            CREATE TABLE IF NOT EXISTS observations (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                raw_description TEXT NOT NULL,
+                spoken_text     TEXT NOT NULL,
+                user_trigger    TEXT,
+                created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                deleted_at      TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_observations_time
+                ON observations(created_at DESC) WHERE deleted_at IS NULL;
         """)
         self.conn.commit()
 

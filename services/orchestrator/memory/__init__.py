@@ -36,6 +36,17 @@ class ConversationMemory:
         self._create_tables()
 
     def _create_tables(self):
+        # ── Legacy cleanup: drop old NotesIntegration reminders table if it has
+        # the old schema. Safe no-op if the table doesn't exist or is already new.
+        cols = {
+            r[1]
+            for r in self.conn.execute("PRAGMA table_info(reminders)").fetchall()
+        }
+        if cols and "content" in cols and "trigger_at" not in cols:
+            self.conn.execute("DROP TABLE IF EXISTS reminders")
+            self.conn.execute("DROP INDEX IF EXISTS idx_reminders_pending")
+            self.conn.commit()
+
         self.conn.executescript("""
             -- Episodic memory: conversation summaries
             CREATE TABLE IF NOT EXISTS episodes (
@@ -111,6 +122,47 @@ class ConversationMemory:
                 sources TEXT DEFAULT '[]',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            -- Tasks integration: reminders (new schema), schedule events, lists
+            CREATE TABLE IF NOT EXISTS reminders (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                text          TEXT NOT NULL,
+                trigger_at    TIMESTAMP NOT NULL,
+                created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                fired_at      TIMESTAMP,
+                cancelled_at  TIMESTAMP,
+                entity_id     INTEGER,
+                source_text   TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_reminders_due
+                ON reminders(trigger_at) WHERE fired_at IS NULL AND cancelled_at IS NULL;
+
+            CREATE TABLE IF NOT EXISTS schedule_events (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                title               TEXT NOT NULL,
+                start_at            TIMESTAMP NOT NULL,
+                duration_min        INTEGER,
+                recurrence          TEXT,
+                notes               TEXT,
+                entity_id           INTEGER,
+                created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                heads_up_fired_at   TIMESTAMP,
+                fired_at            TIMESTAMP,
+                cancelled_at        TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_schedule_due
+                ON schedule_events(start_at) WHERE cancelled_at IS NULL;
+
+            CREATE TABLE IF NOT EXISTS list_items (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                list_name   TEXT NOT NULL,
+                text        TEXT NOT NULL,
+                added_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                done_at     TIMESTAMP,
+                position    INTEGER DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_list_active
+                ON list_items(list_name, position) WHERE done_at IS NULL;
         """)
         self.conn.commit()
 

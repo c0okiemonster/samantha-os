@@ -776,6 +776,80 @@
     }
     setInterval(clockTick,10000); clockTick();
 
+    // ─── Vision module ───────────────────────────────────────────────
+    const Vision = (() => {
+      let stream = null;
+      let videoEl = null;
+      let enabled = false;
+
+      async function enable() {
+        if (enabled) return true;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480, facingMode: 'user' },
+            audio: false,
+          });
+          videoEl = document.createElement('video');
+          videoEl.srcObject = stream;
+          videoEl.autoplay = true;
+          videoEl.muted = true;
+          videoEl.playsInline = true;
+          videoEl.style.display = 'none';
+          document.body.appendChild(videoEl);
+          await videoEl.play();
+          enabled = true;
+          localStorage.setItem('samantha.vision.enabled', 'true');
+          console.log('👁️  vision enabled');
+          return true;
+        } catch (e) {
+          console.warn('vision enable failed', e);
+          stream = null;
+          videoEl = null;
+          enabled = false;
+          return false;
+        }
+      }
+
+      function disable() {
+        if (stream) {
+          stream.getTracks().forEach(t => t.stop());
+          stream = null;
+        }
+        if (videoEl) {
+          videoEl.remove();
+          videoEl = null;
+        }
+        enabled = false;
+        localStorage.setItem('samantha.vision.enabled', 'false');
+        console.log('👁️  vision disabled');
+      }
+
+      async function grabFrame() {
+        if (!enabled || !videoEl) {
+          throw new Error('vision_off');
+        }
+        if (videoEl.readyState < 2) {
+          throw new Error('grab_failed');
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 480;
+        canvas.getContext('2d').drawImage(videoEl, 0, 0, 640, 480);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        return dataUrl.replace(/^data:image\/jpeg;base64,/, '');
+      }
+
+      function isEnabled() { return enabled; }
+
+      async function restoreFromStorage() {
+        if (localStorage.getItem('samantha.vision.enabled') === 'true') {
+          await enable();
+        }
+      }
+
+      return { enable, disable, grabFrame, isEnabled, restoreFromStorage };
+    })();
+
     // ─── Chime ───────────────────────────────────────────────────────
     const Chime = (() => {
       let audioCtx = null;
@@ -1118,6 +1192,7 @@
 
       Chime.load();
       Chime.attachUnlock();
+      Vision.restoreFromStorage();
       connectWS();
 
       await sleep(2000);

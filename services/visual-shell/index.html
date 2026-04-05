@@ -935,7 +935,6 @@
       ws.onmessage=e=>{
         let d;
         try { d = JSON.parse(e.data); } catch(x) { console.error('WS parse error', x); return; }
-        if (d && d.event === 'overlay_card') console.log('📬 overlay_card received:', d);
         try { handleEvt(d); } catch(x) { console.error('handleEvt error', x, 'for event:', d && d.event); }
       };
       ws.onclose=()=>setTimeout(connectWS,CFG.reconnect);

@@ -1120,6 +1120,29 @@
         case 'overlay_card':
           Overlay.show(d);
           break;
+        case 'request_snapshot':
+          try { if (typeof setMood === 'function') setMood('warm'); } catch(_) {}
+          Vision.grabFrame().then(image => {
+            ws.send(JSON.stringify({
+              event: 'snapshot',
+              req_id: d.req_id,
+              image: image,
+            }));
+          }).catch(err => {
+            let code = 'grab_failed';
+            if (err && err.message === 'vision_off') code = 'vision_off';
+            if (err && err.name === 'NotAllowedError') {
+              code = 'permission_revoked';
+              Vision.disable();
+              if (typeof renderVisionToggle === 'function') renderVisionToggle();
+            }
+            ws.send(JSON.stringify({
+              event: 'snapshot',
+              req_id: d.req_id,
+              error: code,
+            }));
+          });
+          break;
       }
     }
     function sendText(t) {

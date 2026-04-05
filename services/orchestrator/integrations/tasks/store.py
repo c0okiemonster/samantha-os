@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from .models import ListItem, Recurrence, Reminder, ScheduleEvent
@@ -84,6 +84,24 @@ def _row_to_reminder(row: sqlite3.Row) -> Reminder:
     )
 
 
+def _row_to_schedule_event(row: sqlite3.Row) -> ScheduleEvent:
+    rec_str = row["recurrence"]
+    recurrence = Recurrence(rec_str) if rec_str else None
+    return ScheduleEvent(
+        id=row["id"],
+        title=row["title"],
+        start_at=_parse(row["start_at"]),
+        duration_min=row["duration_min"],
+        recurrence=recurrence,
+        notes=row["notes"],
+        entity_id=row["entity_id"],
+        created_at=_parse(row["created_at"]),
+        heads_up_fired_at=_parse(row["heads_up_fired_at"]),
+        fired_at=_parse(row["fired_at"]),
+        cancelled_at=_parse(row["cancelled_at"]),
+    )
+
+
 class TasksStore:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
@@ -159,3 +177,127 @@ class TasksStore:
             "SELECT * FROM reminders WHERE id = ?", (row["id"],)
         ).fetchone()
         return _row_to_reminder(updated)
+
+    # ─── Schedule events ────────────────────────────────────────────────
+
+    def create_schedule_event(
+        self,
+        title: str,
+        start_at: datetime,
+        duration_min: Optional[int] = None,
+        recurrence: Optional[Recurrence] = None,
+        notes: Optional[str] = None,
+        entity_id: Optional[int] = None,
+    ) -> ScheduleEvent:
+        cur = self.conn.execute(
+            "INSERT INTO schedule_events "
+            "(title, start_at, duration_min, recurrence, notes, entity_id) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                title,
+                _iso(start_at),
+                duration_min,
+                recurrence.kind if recurrence else None,
+                notes,
+                entity_id,
+            ),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT * FROM schedule_events WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+        return _row_to_schedule_event(row)
+
+    def get_schedule_event(self, event_id: int) -> Optional[ScheduleEvent]:
+        row = self.conn.execute(
+            "SELECT * FROM schedule_events WHERE id = ?", (event_id,)
+        ).fetchone()
+        return _row_to_schedule_event(row) if row else None
+
+    def schedule_due(self, now: datetime) -> list[ScheduleEvent]:
+        rows = self.conn.execute(
+            "SELECT * FROM schedule_events "
+            "WHERE start_at <= ? "
+            "AND fired_at IS NULL "
+            "AND cancelled_at IS NULL "
+            "ORDER BY start_at ASC",
+            (_iso(now),),
+        ).fetchall()
+        return [_row_to_schedule_event(r) for r in rows]
+
+    def schedule_heads_up_due(self, now: datetime, window_min: int) -> list[ScheduleEvent]:
+        upper = now + timedelta(minutes=window_min)
+        rows = self.conn.execute(
+            "SELECT * FROM schedule_events "
+            "WHERE start_at > ? "
+            "AND start_at <= ? "
+            "AND heads_up_fired_at IS NULL "
+            "AND cancelled_at IS NULL "
+            "ORDER BY start_at ASC",
+            (_iso(now), _iso(upper)),
+        ).fetchall()
+        return [_row_to_schedule_event(r) for r in rows]
+
+    def mark_heads_up_fired(self, event_id: int, now: datetime) -> None:
+        self.conn.execute(
+            "UPDATE schedule_events SET heads_up_fired_at = ? WHERE id = ?",
+            (_iso(now), event_id),
+        )
+        self.conn.commit()
+
+    def mark_schedule_fired(self, event_id: int, now: datetime) -> None:
+        self.conn.execute(
+            "UPDATE schedule_events SET fired_at = ? WHERE id = ?",
+            (_iso(now), event_id),
+        )
+        self.conn.commit()
+
+    def advance_recurrence(self, event_id: int, now: datetime) -> None:
+        """Compute the next occurrence strictly after `now`, write it,
+        and reset fired flags so the next cycle fires again."""
+        row = self.conn.execute(
+            "SELECT * FROM schedule_events WHERE id = ?", (event_id,)
+        ).fetchone()
+        if row is None:
+            return
+        event = _row_to_schedule_event(row)
+        if not event.recurrence:
+            return
+        next_start = _next_occurrence(event.start_at, event.recurrence, now)
+        self.conn.execute(
+            "UPDATE schedule_events "
+            "SET start_at = ?, fired_at = NULL, heads_up_fired_at = NULL "
+            "WHERE id = ?",
+            (_iso(next_start), event_id),
+        )
+        self.conn.commit()
+
+
+# Weekday names → Python weekday() int (Mon=0..Sun=6)
+_WEEKLY_DAYS = {
+    "mon": 0, "tue": 1, "wed": 2, "thu": 3,
+    "fri": 4, "sat": 5, "sun": 6,
+}
+
+
+def _next_occurrence(current: datetime, recurrence: Recurrence, now: datetime) -> datetime:
+    """Advance `current` forward by recurrence rules until strictly > now."""
+    candidate = current
+    while True:
+        candidate = _step(candidate, recurrence)
+        if candidate > now:
+            return candidate
+
+
+def _step(dt: datetime, recurrence: Recurrence) -> datetime:
+    kind = recurrence.kind
+    if kind == "daily":
+        return dt + timedelta(days=1)
+    if kind == "weekdays":
+        nxt = dt + timedelta(days=1)
+        while nxt.weekday() >= 5:  # Sat=5, Sun=6
+            nxt += timedelta(days=1)
+        return nxt
+    if kind.startswith("weekly:"):
+        return dt + timedelta(days=7)
+    raise ValueError(f"Unknown recurrence kind: {kind}")

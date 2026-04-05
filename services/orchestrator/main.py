@@ -861,6 +861,7 @@ async def ws_endpoint(ws: WebSocket):
 
             elif data.get("event") == "text_input":
                 text = data["text"]
+                logger.info(f"💬 User (ws): {text}")
                 await ws.send_json({"event": "user_speaking", "text": text})
                 await ws.send_json({"event": "thinking"})
                 result = await process_message(text)

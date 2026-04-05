@@ -133,3 +133,40 @@ def test_chat_signal_hey_does_not_match_inside_heyday():
     import re
     assert not re.search(r"\bhi\b", "this is fine")
     assert re.search(r"\bhi\b", "hi there")
+
+
+def test_stopwords_do_not_misroute_chat_to_reminder():
+    """Regression: 'Ask me questions about me so you can get to know me better'
+    must NOT route to add_reminder. Previously the two common words 'me' and
+    'to' overlapped with the reminder examples and scored 0.4 confidence."""
+    from intents import IntentRouter
+    from integrations import IntegrationRegistry, BaseIntegration, IntegrationAction
+
+    class DummyTasks(BaseIntegration):
+        name = "tasks"
+        display_name = "Tasks"
+        async def initialize(self, config): return True
+        async def execute(self, action_name, params): return {}
+        def get_actions(self):
+            return [IntegrationAction(
+                name="add_reminder",
+                description="set a reminder",
+                keywords=["remind me", "remind me to", "remind me about"],
+                examples=[
+                    "Remind me to call mom at 5pm",
+                    "Remind me in 20 minutes to check the oven",
+                ],
+            )]
+
+    registry = IntegrationRegistry()
+    dummy = DummyTasks()
+    registry.register(dummy)
+    registry._enabled.add("tasks")
+
+    router = IntentRouter(registry)
+    result = router.route("Ask me questions about me so you can get to know me better")
+    # Should either return None (below threshold) or at minimum not claim
+    # this is a reminder — no keywords matched.
+    assert result is None or result.confidence < 0.3, (
+        f"Expected no routing, got {result}"
+    )

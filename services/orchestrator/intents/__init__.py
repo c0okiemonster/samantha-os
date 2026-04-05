@@ -21,6 +21,23 @@ from integrations import IntegrationRegistry, IntegrationAction
 logger = logging.getLogger("samantha.intent")
 
 
+# Common English stopwords that should NOT contribute to example-overlap
+# scoring. Without this filter, any sentence containing "me" and "to" would
+# score 0.4 against the reminder examples and get misrouted.
+_STOPWORDS = frozenset({
+    "a", "an", "the", "i", "me", "my", "you", "your", "we", "us", "our",
+    "he", "she", "it", "they", "them", "this", "that", "these", "those",
+    "is", "am", "are", "was", "were", "be", "been", "being", "do", "does",
+    "did", "have", "has", "had", "will", "would", "could", "should", "can",
+    "may", "might", "must", "shall",
+    "to", "of", "in", "on", "at", "for", "with", "by", "from", "as",
+    "into", "about", "so", "or", "and", "but", "if", "because",
+    "not", "no", "yes", "what", "where", "when", "who", "why", "how",
+    "get", "got", "know", "tell", "say", "ask",
+    "better", "more", "less", "some", "any",
+})
+
+
 @dataclass
 class ResolvedIntent:
     integration_name: str
@@ -104,10 +121,14 @@ class IntentRouter:
         if matched_keywords > 1:
             score += 0.2
 
-        # Check against example phrases for similarity
+        # Check against example phrases for similarity. Filter out stopwords
+        # so overlap on "me", "to", "the" doesn't promote unrelated sentences.
+        text_words = {w for w in re.findall(r"\b\w+\b", text) if w not in _STOPWORDS}
         for example in action.examples:
-            example_words = set(example.lower().split())
-            text_words = set(text.split())
+            example_words = {
+                w for w in re.findall(r"\b\w+\b", example.lower())
+                if w not in _STOPWORDS
+            }
             overlap = len(example_words & text_words)
             if overlap >= 2:
                 score += 0.1 * overlap

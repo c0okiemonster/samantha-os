@@ -1175,6 +1175,285 @@
     // Re-render after restore-from-storage has had a chance to resolve
     setTimeout(renderVisionToggle, 500);
 
+    // ─── Memory Timeline module ──────────────────────────────────────
+    const Timeline = (() => {
+      const panel = document.getElementById('timeline-panel');
+      const scrollEl = panel.querySelector('.timeline-scroll');
+      const filtersEl = panel.querySelector('.timeline-filters');
+      const closeBtn = panel.querySelector('.timeline-close');
+      const toastEl = panel.querySelector('.timeline-toast');
+
+      let isOpen = false;
+      let loading = false;
+      let entries = [];
+      let nextBefore = null;
+      let hasMore = false;
+      let selectedTypes = new Set(['fact', 'observation', 'episode', 'mood']);
+      const pendingDeletes = new Map(); // entry.id → timeout handle
+
+      function open() {
+        if (isOpen) return;
+        isOpen = true;
+        panel.classList.add('visible');
+        panel.setAttribute('aria-hidden', 'false');
+        entries = [];
+        nextBefore = null;
+        hasMore = false;
+        scrollEl.innerHTML = '';
+        load();
+      }
+
+      function close() {
+        if (!isOpen) return;
+        isOpen = false;
+        panel.classList.remove('visible');
+        panel.setAttribute('aria-hidden', 'true');
+        hideToast();
+      }
+
+      function toggle() {
+        if (isOpen) close(); else open();
+      }
+
+      async function load() {
+        if (loading) return;
+        if (selectedTypes.size === 0) {
+          renderEmpty('Pick a filter above');
+          return;
+        }
+        loading = true;
+        try {
+          const types = Array.from(selectedTypes).join(',');
+          const url = `/memory/timeline?types=${encodeURIComponent(types)}&limit=100`
+            + (nextBefore ? `&before=${encodeURIComponent(nextBefore)}` : '');
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          entries = entries.concat(data.entries || []);
+          nextBefore = data.next_before;
+          hasMore = !!data.has_more;
+          render();
+        } catch (e) {
+          console.warn('Timeline load failed', e);
+          renderEmpty("Can't reach memory right now");
+        } finally {
+          loading = false;
+        }
+      }
+
+      function bucketFor(ts) {
+        if (!ts) return 'Earlier';
+        const d = new Date(ts);
+        const now = new Date();
+        const msPerDay = 86400000;
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const entryDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const dayDiff = Math.floor((today - entryDay) / msPerDay);
+        if (dayDiff === 0) return 'Today';
+        if (dayDiff === 1) return 'Yesterday';
+        if (dayDiff < 7) return 'This week';
+        if (dayDiff < 14) return 'Last week';
+        return 'Earlier';
+      }
+
+      const KICKER_FOR_TYPE = {
+        fact: 'FACT',
+        entity: 'ENTITY',
+        observation: 'OBS',
+        episode: 'EPISODE',
+        mood: 'MOOD',
+        news: 'NEWS',
+      };
+
+      function renderEmpty(msg) {
+        scrollEl.innerHTML = `<div class="timeline-empty">${escapeHtml(msg)}</div>`;
+      }
+
+      function render() {
+        if (entries.length === 0) {
+          renderEmpty('Nothing here yet. Keep talking to me.');
+          return;
+        }
+        const bucketOrder = ['Today', 'Yesterday', 'This week', 'Last week', 'Earlier'];
+        const buckets = new Map();
+        for (const e of entries) {
+          const b = bucketFor(e.ts);
+          if (!buckets.has(b)) buckets.set(b, []);
+          buckets.get(b).push(e);
+        }
+        let html = '';
+        for (const label of bucketOrder) {
+          if (!buckets.has(label)) continue;
+          html += `<div class="day-bucket">`;
+          html += `<div class="day-bucket-header">${label}</div>`;
+          for (const e of buckets.get(label)) {
+            html += renderEntry(e);
+          }
+          html += `</div>`;
+        }
+        if (hasMore) {
+          html += `<div class="timeline-footer"><button class="load-more" type="button">Load older…</button></div>`;
+        } else if (entries.length > 0) {
+          html += `<div class="timeline-footer">That's everything.</div>`;
+        }
+        scrollEl.innerHTML = html;
+
+        scrollEl.querySelectorAll('.entry-delete').forEach(btn => {
+          btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const id = btn.dataset.id;
+            const entry = entries.find(x => x.id === id);
+            if (entry) deleteEntry(entry);
+          });
+        });
+        const loadMoreBtn = scrollEl.querySelector('.load-more');
+        if (loadMoreBtn) loadMoreBtn.addEventListener('click', () => load());
+      }
+
+      function renderEntry(e) {
+        const kicker = KICKER_FOR_TYPE[e.type] || e.type.toUpperCase();
+        return `
+          <div class="entry" data-id="${escapeHtml(e.id)}">
+            <span class="entry-kicker">${kicker}</span>
+            <span class="entry-title">${escapeHtml(e.title || '')}</span>
+            ${e.body ? `<div class="entry-body">${escapeHtml(e.body)}</div>` : ''}
+            <button class="entry-delete" type="button" data-id="${escapeHtml(e.id)}" aria-label="Delete">×</button>
+          </div>
+        `;
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      async function deleteEntry(entry) {
+        const [entryType, numId] = entry.id.split(':');
+        const rowEl = scrollEl.querySelector(`[data-id="${cssEscape(entry.id)}"]`);
+        if (rowEl) rowEl.style.opacity = '0';
+
+        try {
+          const resp = await fetch(`/memory/entry/${entryType}/${numId}`, { method: 'DELETE' });
+          if (!resp.ok && resp.status !== 204) throw new Error(`HTTP ${resp.status}`);
+        } catch (e) {
+          console.warn('Delete failed', e);
+          if (rowEl) rowEl.style.opacity = '1';
+          showToast("Couldn't forget that — try again", null);
+          return;
+        }
+
+        showToast('Forgot this.', entry);
+
+        const handle = setTimeout(() => {
+          entries = entries.filter(x => x.id !== entry.id);
+          if (rowEl && rowEl.parentNode) rowEl.remove();
+          pendingDeletes.delete(entry.id);
+          hideToast();
+        }, 5000);
+        pendingDeletes.set(entry.id, handle);
+      }
+
+      async function undoDelete(entry) {
+        const handle = pendingDeletes.get(entry.id);
+        if (handle) clearTimeout(handle);
+        pendingDeletes.delete(entry.id);
+
+        const [entryType, numId] = entry.id.split(':');
+        try {
+          await fetch(`/memory/entry/${entryType}/${numId}/restore`, { method: 'POST' });
+        } catch (e) {
+          console.warn('Restore failed', e);
+        }
+
+        const rowEl = scrollEl.querySelector(`[data-id="${cssEscape(entry.id)}"]`);
+        if (rowEl) rowEl.style.opacity = '1';
+        hideToast();
+      }
+
+      function showToast(message, entryOrNull) {
+        toastEl.innerHTML = escapeHtml(message);
+        if (entryOrNull) {
+          const btn = document.createElement('button');
+          btn.className = 'undo-btn';
+          btn.textContent = 'Undo';
+          btn.addEventListener('click', () => undoDelete(entryOrNull));
+          toastEl.appendChild(btn);
+        }
+        toastEl.classList.add('visible');
+      }
+
+      function hideToast() {
+        toastEl.classList.remove('visible');
+      }
+
+      function cssEscape(s) {
+        return String(s).replace(/"/g, '\\"');
+      }
+
+      filtersEl.addEventListener('click', (ev) => {
+        const chip = ev.target.closest('.chip');
+        if (!chip) return;
+        const type = chip.dataset.type;
+        if (chip.classList.toggle('active')) {
+          selectedTypes.add(type);
+        } else {
+          selectedTypes.delete(type);
+        }
+        entries = [];
+        nextBefore = null;
+        scrollEl.innerHTML = '';
+        load();
+      });
+
+      closeBtn.addEventListener('click', close);
+
+      panel.addEventListener('scroll', () => {
+        if (!hasMore || loading) return;
+        const scrollBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight;
+        if (scrollBottom < 200) load();
+      });
+
+      panel.addEventListener('click', (ev) => {
+        if (ev.target === panel) close();
+      });
+
+      return { open, close, toggle, isOpen: () => isOpen };
+    })();
+
+    // ─── Timeline toggle wiring ──────────────────────────────────────
+    const timelineToggleEl = document.getElementById('timeline-toggle');
+    function renderTimelineToggle() {
+      if (Timeline.isOpen()) {
+        timelineToggleEl.classList.add('active');
+        timelineToggleEl.title = 'Memory — click to close';
+      } else {
+        timelineToggleEl.classList.remove('active');
+        timelineToggleEl.title = 'Memory — click to open';
+      }
+    }
+    timelineToggleEl.addEventListener('click', () => {
+      Timeline.toggle();
+      renderTimelineToggle();
+    });
+
+    // Keyboard: Cmd+K / Ctrl+K toggles the panel; Escape closes it
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        Timeline.toggle();
+        renderTimelineToggle();
+      }
+      if (e.key === 'Escape' && Timeline.isOpen()) {
+        e.preventDefault();
+        Timeline.close();
+        renderTimelineToggle();
+      }
+    });
+
     // ─── Chime ───────────────────────────────────────────────────────
     const Chime = (() => {
       let audioCtx = null;

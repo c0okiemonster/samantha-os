@@ -47,7 +47,7 @@ config/spotify_token.json
 
 # Claude/Superpowers
 .claude/
-docs/superpowers/
 
 # Docker
 .docker/
+.superpowers/

@@ -468,7 +468,12 @@
     <div class="date" id="clock-date"></div>
   </div>
   <div id="identity">Samantha</div>
-  <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">👁</button>
+  <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  </button>
 
   <div id="status">
     <div class="dot"></div>
@@ -919,8 +924,7 @@
     // ─── Vision toggle wiring ───────────────────────────────────────
     const visionToggleEl = document.getElementById('vision-toggle');
     function renderVisionToggle() {
-      // Single glyph for both states; styling (via .active class) shows on/off.
-      visionToggleEl.textContent = '👁';
+      // Icon is an inline SVG in the DOM; we only toggle class + title here.
       if (Vision.isEnabled()) {
         visionToggleEl.classList.add('active');
         visionToggleEl.title = 'Vision is on — click to close';

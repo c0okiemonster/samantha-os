@@ -400,6 +400,46 @@
       transform-origin: left;
       transform: scaleX(1);
     }
+    /* ─── Vision toggle ──────────────────────────────────────────── */
+    #vision-toggle {
+      position: fixed;
+      top: 3.8rem;
+      right: 2rem;
+      z-index: 50;
+      width: 2.4rem;
+      height: 2.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 1px solid rgba(58, 15, 28, 0.25);
+      border-radius: 50%;
+      background: rgba(254, 245, 237, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #3a0f1c;
+      opacity: 0.8;
+      font-size: 1.1rem;
+      line-height: 1;
+      transition: opacity 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      padding: 0;
+    }
+    #vision-toggle:hover {
+      opacity: 1;
+      background: rgba(254, 245, 237, 0.7);
+    }
+    #vision-toggle.active {
+      opacity: 1;
+      background: rgba(196, 88, 120, 0.25);
+      border-color: rgba(196, 88, 120, 0.55);
+      box-shadow: 0 0 12px rgba(196, 88, 120, 0.5);
+      animation: visionGlow 2.4s ease-in-out infinite;
+    }
+    @keyframes visionGlow {
+      0%, 100% { box-shadow: 0 0 10px rgba(196, 88, 120, 0.4); }
+      50%      { box-shadow: 0 0 18px rgba(196, 88, 120, 0.75); }
+    }
   </style>
 </head>
 <body>
@@ -428,6 +468,7 @@
     <div class="date" id="clock-date"></div>
   </div>
   <div id="identity">Samantha</div>
+  <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">👁</button>
 
   <div id="status">
     <div class="dot"></div>
@@ -776,6 +817,129 @@
     }
     setInterval(clockTick,10000); clockTick();
 
+    // ─── Vision module ───────────────────────────────────────────────
+    const Vision = (() => {
+      let stream = null;
+      let videoEl = null;
+      let enabled = false;
+
+      async function enable() {
+        if (enabled) return true;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error('👁️  mediaDevices API not available. Are you on HTTPS or localhost?');
+          return false;
+        }
+        // Try a lenient ideal constraint first, then fall back to bare `video: true`
+        // if the browser is strict about facingMode on desktop.
+        const attempts = [
+          { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'user' } }, audio: false },
+          { video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+          { video: true, audio: false },
+        ];
+        let lastError = null;
+        for (const constraints of attempts) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log('👁️  getUserMedia succeeded with', JSON.stringify(constraints));
+            break;
+          } catch (e) {
+            console.warn('👁️  getUserMedia attempt failed:', e.name, e.message);
+            lastError = e;
+            stream = null;
+          }
+        }
+        if (!stream) {
+          console.error('👁️  all getUserMedia attempts failed. Last error:', lastError && lastError.name, lastError && lastError.message);
+          enabled = false;
+          return false;
+        }
+        try {
+          videoEl = document.createElement('video');
+          videoEl.srcObject = stream;
+          videoEl.autoplay = true;
+          videoEl.muted = true;
+          videoEl.playsInline = true;
+          videoEl.style.display = 'none';
+          document.body.appendChild(videoEl);
+          await videoEl.play();
+          enabled = true;
+          localStorage.setItem('samantha.vision.enabled', 'true');
+          console.log('👁️  vision enabled');
+          return true;
+        } catch (e) {
+          console.error('👁️  video element setup failed', e);
+          if (stream) stream.getTracks().forEach(t => t.stop());
+          stream = null;
+          videoEl = null;
+          enabled = false;
+          return false;
+        }
+      }
+
+      function disable() {
+        if (stream) {
+          stream.getTracks().forEach(t => t.stop());
+          stream = null;
+        }
+        if (videoEl) {
+          videoEl.remove();
+          videoEl = null;
+        }
+        enabled = false;
+        localStorage.setItem('samantha.vision.enabled', 'false');
+        console.log('👁️  vision disabled');
+      }
+
+      async function grabFrame() {
+        if (!enabled || !videoEl) {
+          throw new Error('vision_off');
+        }
+        if (videoEl.readyState < 2) {
+          throw new Error('grab_failed');
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 480;
+        canvas.getContext('2d').drawImage(videoEl, 0, 0, 640, 480);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        return dataUrl.replace(/^data:image\/jpeg;base64,/, '');
+      }
+
+      function isEnabled() { return enabled; }
+
+      async function restoreFromStorage() {
+        if (localStorage.getItem('samantha.vision.enabled') === 'true') {
+          await enable();
+        }
+      }
+
+      return { enable, disable, grabFrame, isEnabled, restoreFromStorage };
+    })();
+
+    // ─── Vision toggle wiring ───────────────────────────────────────
+    const visionToggleEl = document.getElementById('vision-toggle');
+    function renderVisionToggle() {
+      // Single glyph for both states; styling (via .active class) shows on/off.
+      visionToggleEl.textContent = '👁';
+      if (Vision.isEnabled()) {
+        visionToggleEl.classList.add('active');
+        visionToggleEl.title = 'Vision is on — click to close';
+      } else {
+        visionToggleEl.classList.remove('active');
+        visionToggleEl.title = 'Vision is off — click to let Samantha see';
+      }
+    }
+    visionToggleEl.addEventListener('click', async () => {
+      if (Vision.isEnabled()) {
+        Vision.disable();
+      } else {
+        await Vision.enable();
+      }
+      renderVisionToggle();
+    });
+    // Re-render after restore-from-storage has had a chance to resolve
+    setTimeout(renderVisionToggle, 500);
+
     // ─── Chime ───────────────────────────────────────────────────────
     const Chime = (() => {
       let audioCtx = null;
@@ -990,6 +1154,34 @@
         case 'overlay_card':
           Overlay.show(d);
           break;
+        case 'request_snapshot':
+          console.log('👁️  request_snapshot received, req_id=', d.req_id, 'Vision.isEnabled()=', Vision.isEnabled());
+          try { if (typeof setMood === 'function') setMood('warm'); } catch(_) {}
+          Vision.grabFrame().then(image => {
+            console.log('👁️  grabFrame succeeded, image length=', image ? image.length : 0);
+            ws.send(JSON.stringify({
+              event: 'snapshot',
+              req_id: d.req_id,
+              image: image,
+            }));
+            console.log('👁️  snapshot sent');
+          }).catch(err => {
+            console.warn('👁️  grabFrame failed:', err && err.name, err && err.message);
+            let code = 'grab_failed';
+            if (err && err.message === 'vision_off') code = 'vision_off';
+            if (err && err.name === 'NotAllowedError') {
+              code = 'permission_revoked';
+              Vision.disable();
+              if (typeof renderVisionToggle === 'function') renderVisionToggle();
+            }
+            ws.send(JSON.stringify({
+              event: 'snapshot',
+              req_id: d.req_id,
+              error: code,
+            }));
+            console.log('👁️  snapshot error sent:', code);
+          });
+          break;
       }
     }
     function sendText(t) {
@@ -1118,6 +1310,7 @@
 
       Chime.load();
       Chime.attachUnlock();
+      Vision.restoreFromStorage();
       connectWS();
 
       await sleep(2000);

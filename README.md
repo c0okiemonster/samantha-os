@@ -38,12 +38,12 @@ She's not a tool. She's a companion you can spin up in Docker.
 
 <div align="center">
 
-| 🧠 **Brain** | 🗣️ **Voice** | 💾 **Memory** | 🌍 **World** | 🗓️ **Tasks** |
-|:---:|:---:|:---:|:---:|:---:|
-| gemma2:9b via Ollama | Kokoro KPipeline | Entity-aware SQLite | News + Weather | Reminders |
-| Personality engine | Custom voice blend | Semantic embeddings | DuckDuckGo search | Schedule events |
-| Mood detection | 0.90x warm & slow | Conversation threads | Date/time aware | Named lists |
-| Emotional arc | Natural prosody | FTS5 full-text search | Swedish → English input | Background scheduler |
+| 🧠 **Brain** | 🗣️ **Voice** | 💾 **Memory** | 🌍 **World** | 🗓️ **Tasks** | 👁️ **Vision** |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| gemma2:9b via Ollama | Kokoro KPipeline | Entity-aware SQLite | News + Weather | Reminders | moondream VLM |
+| Personality engine | Custom voice blend | Semantic embeddings | DuckDuckGo search | Schedule events | Opt-in toggle |
+| Mood detection | 0.90x warm & slow | Conversation threads | Date/time aware | Named lists | Observation memory |
+| Emotional arc | Natural prosody | FTS5 full-text search | Swedish → English input | Background scheduler | Recall by noun |
 
 </div>
 
@@ -76,6 +76,14 @@ She's not a tool. She's a companion you can spin up in Docker.
 - **Beautiful overlay cards** — translucent cream cards slide in from the right, auto-dismiss after 25s, hover to pause, click to dismiss
 - **Background scheduler** — asyncio loop in the orchestrator polls every 15s; reminders and events survive restarts (stored in SQLite, not in-memory)
 - **Swedish input support** — say or type in Swedish; input is auto-detected and translated to English before routing. She responds in English (TTS is English-only for now)
+
+### Vision
+- **Opt-in eyes** — toggle the closed-eye glyph (`◡`) below the Samantha nameplate to let her see. Off by default; your camera light stays dark until you click. State persists across reloads.
+- **One-shot snapshots** — *"What do you see?"*, *"What am I wearing?"*, *"Look at me"* → she grabs a single frame, moondream describes it, gemma2 rewords it in her warm voice, she speaks. ~1-3s round-trip.
+- **Persistent observations** — what she sees is stored as text (never as image files). Ask *"what did you see earlier?"* or *"when did you last see my plant?"* and she recalls the most recent matching observation.
+- **moondream VLM** — tiny (~1.8 GB), fast (~1s per frame on Apple Silicon). Swappable via `VLM_MODEL=llava:7b` or `VLM_MODEL=qwen2.5vl:7b` env var. Prereq: `ollama pull moondream`.
+- **Fact extraction** — entities she sees (plants, mugs, objects) feed into the existing memory system in the background.
+- **Privacy promises** — frames are consumed in-memory only, never written to disk. Camera stream closes completely when toggle is off (`track.stop()` called). Permission revocation mid-session is detected and announced.
 
 ### Proactive
 - Auto-greets when you connect (introduces herself on first meeting)
@@ -440,6 +448,93 @@ docker compose logs orchestrator | grep "tasks scheduler started"
 ### Non-English input
 
 Any input you type or speak is language-detected with a fast heuristic (presence of `å/ä/ö` or two+ Swedish stopwords). If it's not English, a short LLM call translates it to English before anything else sees it — intent routing, memory storage, and the chat LLM all see a consistent English representation. On translation failure she falls back to the original text. She always responds in English since the TTS model is English-only.
+
+---
+
+## How Vision Works
+
+### Prerequisite
+
+```bash
+ollama pull moondream    # ~1.8 GB, one-time
+```
+
+Other supported VLMs (swap via `VLM_MODEL` env var): `llava:7b`, `qwen2.5vl:7b`.
+
+### What you can say
+
+| Intent | Example phrasings |
+|---|---|
+| Take a snapshot | *"What do you see?"*, *"Look at me"*, *"What am I wearing?"*, *"Describe what you see"*, *"Take a look around"* |
+| Recall | *"What did you see earlier?"*, *"When did you last see my plant?"*, *"What was I wearing yesterday?"* |
+
+### Turning vision on
+
+Click the closed-eye glyph (`◡`) below the **Samantha** nameplate in the top-right. First click prompts the browser for camera permission. When enabled, the glyph flips to `◉` with a soft burgundy glow. State is remembered across reloads via `localStorage`.
+
+Click again to turn it off — the camera track is fully stopped, LED goes dark. Permission revocation mid-session is detected on the next snapshot attempt and she tells you.
+
+### Snapshot pipeline
+
+```
+you: "what do you see?"
+  → IntentRouter matches vision.take_snapshot (confidence ~1.0)
+  → orchestrator broadcasts {event: "request_snapshot", req_id}
+  → visual shell grabs <video> frame → canvas → base64 JPEG
+  → shell sends {event: "snapshot", req_id, image}
+  → orchestrator resolves its asyncio.Future
+  → moondream VLM (host Ollama) → raw description
+  → gemma2 rewords in Samantha's warm voice
+  → both descriptions stored in observations table
+  → Samantha speaks the voiced version
+  → background: fact extractor runs on the raw description
+```
+
+Max round-trip: ~3 seconds with moondream + gemma2 on an M-series Mac. The orchestrator times out after 5 seconds if the browser doesn't send a frame back.
+
+### Storage
+
+```sql
+CREATE TABLE observations (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  raw_description TEXT NOT NULL,     -- VLM output, clinical
+  spoken_text     TEXT NOT NULL,     -- gemma2 reworded, Samantha's voice
+  user_trigger    TEXT,              -- the phrase that triggered the snapshot
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at      TIMESTAMP          -- soft delete
+);
+```
+
+Both representations stored. Recall queries search the clinical `raw_description` (precise); she speaks the warm `spoken_text`.
+
+**No image data on disk.** Frames are consumed in-memory and discarded after the VLM call. The only thing that survives is the text.
+
+### Inspecting state by hand
+
+```bash
+# Recent observations
+docker compose exec orchestrator python -c "
+import sqlite3
+c = sqlite3.connect('/app/config/samantha_memory.db')
+c.row_factory = sqlite3.Row
+for r in c.execute('SELECT id, raw_description, spoken_text FROM observations WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 5'):
+    print(dict(r))
+"
+
+# Wipe all observations (and other tables)
+curl -X POST http://127.0.0.1:8000/reset-all
+```
+
+### Swapping the VLM
+
+In `.env`:
+
+```bash
+VLM_MODEL=llava:7b        # or qwen2.5vl:7b
+VLM_TIMEOUT_S=30          # llava/qwen are slower, give them more time
+```
+
+Then `ollama pull llava:7b && docker compose restart orchestrator`. No rebuild needed.
 
 ---
 

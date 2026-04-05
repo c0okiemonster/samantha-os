@@ -1,0 +1,46 @@
+name: Bug Report
+description: Something isn't working right
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected to happen
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. Run `docker compose up`
+        2. Open http://localhost:3333
+        3. Say "Hey Samantha"
+        4. Observe...
+    validations:
+      required: true
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Hardware
+      options:
+        - Mac Apple Silicon (M1/M2/M3/M4)
+        - Mac Intel
+        - Linux + NVIDIA GPU
+        - Linux CPU only
+        - Windows + WSL2
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: llm-model
+    attributes:
+      label: LLM model
+      placeholder: "gemma2:9b"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Output from `docker compose logs` or browser console
+      render: shell

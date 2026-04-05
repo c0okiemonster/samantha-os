@@ -1,0 +1,26 @@
+name: Close Stale Issues and PRs
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # daily at 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@v9
+        with:
+          stale-issue-message: "This issue has been quiet for 30 days. Mark it fresh with a comment, or it will close in 7 days."
+          stale-pr-message: "This PR has been quiet for 14 days. Push new commits or comment to keep it alive."
+          days-before-issue-stale: 30
+          days-before-pr-stale: 14
+          days-before-issue-close: 7
+          days-before-pr-close: 7
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          exempt-issue-labels: 'pinned,security,in-progress'
+          exempt-pr-labels: 'pinned,security,in-progress'

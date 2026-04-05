@@ -1,0 +1,10 @@
+# Code owners for Samantha OS
+# These users are automatically requested for review on any PR
+
+# Everything requires owner approval
+* @c0okiemonster
+
+# Config changes are especially sensitive
+/config/ @c0okiemonster
+/docker-compose.yml @c0okiemonster
+/.github/ @c0okiemonster

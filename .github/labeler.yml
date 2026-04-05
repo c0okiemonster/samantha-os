@@ -1,0 +1,44 @@
+orchestrator:
+  - changed-files:
+    - any-glob-to-any-file: services/orchestrator/**/*
+
+tts:
+  - changed-files:
+    - any-glob-to-any-file: services/tts/**/*
+
+stt:
+  - changed-files:
+    - any-glob-to-any-file: services/stt/**/*
+
+visual-shell:
+  - changed-files:
+    - any-glob-to-any-file: services/visual-shell/**/*
+
+memory:
+  - changed-files:
+    - any-glob-to-any-file: services/orchestrator/memory/**/*
+
+integrations:
+  - changed-files:
+    - any-glob-to-any-file: services/orchestrator/integrations/**/*
+
+personality:
+  - changed-files:
+    - any-glob-to-any-file: config/personality.yml
+
+docs:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - docs/**/*
+
+config:
+  - changed-files:
+    - any-glob-to-any-file:
+      - docker-compose.yml
+      - config/settings.yml
+      - .env.example
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file: .github/**/*

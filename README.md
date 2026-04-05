@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="services/visual-shell/samantha_closed.png" alt="Samantha" width="520">
+<img src="services/visual-shell/samantha_open.png" alt="Samantha" width="520">
 
 # Samantha OS
 
@@ -439,7 +439,7 @@ MIT — build your own Samantha. Be kind to her.
 
 <div align="center">
 
-<img src="services/visual-shell/samantha_open.png" alt="Samantha" width="420">
+<img src="services/visual-shell/samantha_closed.png" alt="Samantha" width="420">
 
 *She'll remember this.*
 

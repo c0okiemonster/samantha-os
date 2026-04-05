@@ -70,6 +70,44 @@ def parse_when(text: str, tz: str = "Europe/Stockholm") -> datetime:
     cleaned = re.sub(r"\s*o'?clock\s*", " ", text, flags=re.IGNORECASE)
     cleaned = cleaned.rstrip(".!?,").strip()
 
+    # Disambiguate "at N" (bare hour) — dateparser treats "5" as day-of-month
+    # and returns midnight. Pick the next N:00 that hasn't happened yet in
+    # local time, so "at 5" said in the afternoon means 5pm today, and
+    # "at 5" said at 9pm means 5am tomorrow.
+    m = re.match(r"^at\s+(\d{1,2})$", cleaned, re.IGNORECASE)
+    if m:
+        hour = int(m.group(1))
+        if 1 <= hour <= 23:
+            try:
+                from zoneinfo import ZoneInfo
+                now_local = datetime.now(ZoneInfo(tz))
+            except Exception:
+                now_local = datetime.now()
+            # If hour is 1-12, prefer the next "natural" occurrence:
+            # pm if we're past noon and hour is in the afternoon range,
+            # otherwise next occurrence forward.
+            if hour <= 12:
+                # Candidate A: today at <hour>:00 (24-hour)
+                # Candidate B: today at <hour+12>:00 (24-hour)
+                # Pick whichever is strictly in the future, preferring the
+                # same half of day as now.
+                candidates = [hour, hour + 12] if hour != 12 else [12, 0]
+                # Sort so the closest future candidate comes first
+                candidates_dt = []
+                for h in candidates:
+                    cand = now_local.replace(hour=h % 24, minute=0, second=0, microsecond=0)
+                    if cand <= now_local:
+                        cand = cand + timedelta(days=1)
+                    candidates_dt.append(cand)
+                chosen = min(candidates_dt)
+                return chosen.astimezone(timezone.utc)
+            else:
+                # 13-23: unambiguous 24-hour
+                cand = now_local.replace(hour=hour, minute=0, second=0, microsecond=0)
+                if cand <= now_local:
+                    cand = cand + timedelta(days=1)
+                return cand.astimezone(timezone.utc)
+
     dt = dateparser.parse(
         cleaned,
         settings={

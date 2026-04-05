@@ -488,7 +488,10 @@ async def process_message(user_text: str) -> dict:
     # Check for integration intent
     intent = state.router.route(user_text) if state.router else None
 
-    if intent and intent.confidence > 0.5:
+    # Tasks actions have very specific trigger words — a lower threshold is
+    # safe here. Other integrations stay at 0.5 to avoid false positives.
+    _min_confidence = 0.3 if (intent and intent.integration_name == "tasks") else 0.5
+    if intent and intent.confidence > _min_confidence:
         # Execute integration action
         logger.info(f"🔧 Action: {intent.integration_name}.{intent.action_name}")
         intg = state.registry.get(intent.integration_name)

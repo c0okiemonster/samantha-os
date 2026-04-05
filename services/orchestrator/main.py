@@ -487,13 +487,13 @@ async def process_message(user_text: str) -> dict:
         logger.info(f"🔧 Action: {intent.integration_name}.{intent.action_name}")
         intg = state.registry.get(intent.integration_name)
         if intg:
-            result = await intg.execute(intent.action_name, intent.parameters)
-
-            # Tasks integration returns a ready-made spoken string and optional overlay.
-            # Short-circuit the LLM reformatting path used by other integrations.
-            if intent.integration_name == "tasks" and isinstance(result, dict) and "spoken" in result:
-                spoken_text = result["spoken"]
-                overlay_envelope = result.get("overlay")
+            # Tasks integration needs the raw user text (the generic IntentRouter
+            # _extract_params doesn't populate a "text" key). Call handle_action
+            # directly and short-circuit the LLM reformatting path.
+            if intent.integration_name == "tasks":
+                task_result = await intg.handle_action(intent.action_name, user_text)
+                spoken_text = task_result.spoken
+                overlay_envelope = task_result.overlay.to_envelope() if task_result.overlay else None
                 state.add_message("user", user_text)
                 state.add_message("assistant", spoken_text)
                 state.personality.update_mood(analysis)
@@ -504,8 +504,10 @@ async def process_message(user_text: str) -> dict:
                     "tts_text": spoken_text,
                     "mood": state.personality.mood,
                     "action": intent.action_name,
-                    "result": result,
+                    "result": {"spoken": spoken_text, "overlay": overlay_envelope},
                 }
+
+            result = await intg.execute(intent.action_name, intent.parameters)
 
             # Ask LLM to format the result conversationally
             # Truncate tool results to avoid overwhelming the small LLM

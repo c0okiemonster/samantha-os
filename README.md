@@ -43,7 +43,7 @@ She's not a tool. She's a companion you can spin up in Docker.
 | gemma2:9b via Ollama | Kokoro KPipeline | Entity-aware SQLite | News + Weather | Reminders | moondream VLM |
 | Personality engine | Custom voice blend | Semantic embeddings | DuckDuckGo search | Schedule events | Opt-in toggle |
 | Mood detection | 0.90x warm & slow | Conversation threads | Date/time aware | Named lists | Observation memory |
-| Emotional arc | Natural prosody | FTS5 full-text search | Swedish → English input | Background scheduler | Recall by noun |
+| Emotional arc | Natural prosody | Timeline UI + audit | Swedish → English input | Background scheduler | Recall by noun |
 
 </div>
 
@@ -84,6 +84,14 @@ She's not a tool. She's a companion you can spin up in Docker.
 - **moondream VLM** — tiny (~1.8 GB), fast (~1s per frame on Apple Silicon). Swappable via `VLM_MODEL=llava:7b` or `VLM_MODEL=qwen2.5vl:7b` env var. Prereq: `ollama pull moondream`.
 - **Fact extraction** — entities she sees (plants, mugs, objects) feed into the existing memory system in the background.
 - **Privacy promises** — frames are consumed in-memory only, never written to disk. Camera stream closes completely when toggle is off (`track.stop()` called). Permission revocation mid-session is detected and announced.
+
+### Memory Timeline
+- **📖 Timeline panel** — click the timeline icon in the top-right (or press `Cmd+K` / `Ctrl+K`) for a full-screen overlay showing everything Samantha has learned: facts, observations, conversation episodes, your mood patterns, entities (people/pets/places), and news digests.
+- **Day-grouped** — entries bucket into Today / Yesterday / This week / Last week / Earlier, newest first.
+- **Filter chips** — toggle which types you want to see. Facts, Observations, Episodes, and Moods are on by default; Entities and News are one click away.
+- **Audit + prune** — hover any entry to reveal a × delete icon. Click to forget. A 5-second undo toast lets you take it back. After 5 seconds the row is soft-deleted (still on disk with `deleted_at` set, but invisible in the timeline).
+- **Infinite scroll** — scroll near the bottom to load older entries automatically.
+- **Privacy-first** — everything is text, stored locally in the SQLite DB alongside her other memories. Nothing leaves your machine.
 
 ### Proactive
 - Auto-greets when you connect (introduces herself on first meeting)

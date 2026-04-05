@@ -400,6 +400,37 @@
       transform-origin: left;
       transform: scaleX(1);
     }
+    /* ─── Vision toggle ──────────────────────────────────────────── */
+    #vision-toggle {
+      position: fixed;
+      top: 3.8rem;
+      right: 2rem;
+      z-index: 19;
+      width: 1.8rem;
+      height: 1.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: #3a0f1c;
+      opacity: 0.4;
+      font-size: 1.1rem;
+      transition: opacity 0.3s ease, text-shadow 0.3s ease;
+      user-select: none;
+      font-family: 'Outfit', sans-serif;
+    }
+    #vision-toggle:hover { opacity: 0.75; }
+    #vision-toggle.active {
+      opacity: 0.85;
+      text-shadow: 0 0 8px rgba(196, 88, 120, 0.55);
+      animation: visionGlow 2.4s ease-in-out infinite;
+    }
+    @keyframes visionGlow {
+      0%, 100% { text-shadow: 0 0 6px rgba(196, 88, 120, 0.4); }
+      50%      { text-shadow: 0 0 12px rgba(196, 88, 120, 0.7); }
+    }
   </style>
 </head>
 <body>
@@ -428,6 +459,7 @@
     <div class="date" id="clock-date"></div>
   </div>
   <div id="identity">Samantha</div>
+  <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">◡</button>
 
   <div id="status">
     <div class="dot"></div>
@@ -849,6 +881,30 @@
 
       return { enable, disable, grabFrame, isEnabled, restoreFromStorage };
     })();
+
+    // ─── Vision toggle wiring ───────────────────────────────────────
+    const visionToggleEl = document.getElementById('vision-toggle');
+    function renderVisionToggle() {
+      if (Vision.isEnabled()) {
+        visionToggleEl.classList.add('active');
+        visionToggleEl.textContent = '◉';
+        visionToggleEl.title = 'Vision is on — click to close';
+      } else {
+        visionToggleEl.classList.remove('active');
+        visionToggleEl.textContent = '◡';
+        visionToggleEl.title = 'Vision is off — click to let Samantha see';
+      }
+    }
+    visionToggleEl.addEventListener('click', async () => {
+      if (Vision.isEnabled()) {
+        Vision.disable();
+      } else {
+        await Vision.enable();
+      }
+      renderVisionToggle();
+    });
+    // Re-render after restore-from-storage has had a chance to resolve
+    setTimeout(renderVisionToggle, 500);
 
     // ─── Chime ───────────────────────────────────────────────────────
     const Chime = (() => {

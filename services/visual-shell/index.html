@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Samantha</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Outfit:wght@200;300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-gradient:    linear-gradient(170deg, #f5c6a0 0%, #e8927a 40%, #c45878 100%);
+      --burgundy:       #5c2030;
+      --burgundy-soft:  #7a3a48;
+      --burgundy-ghost: #9a5a68;
+      --cream:          #fef5ed;
+      --cream-soft:     rgba(254,245,237,0.85);
+      --cream-ghost:    rgba(254,245,237,0.5);
+      --mood-primary:   #e09070;
+      --mood-secondary: #f0c9a8;
+      --mood-glow:      #f2b5a0;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      font-family: 'Outfit', sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      cursor: none;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient glow orbs — drift behind particles */
+    .ambient-glow {
+      position: fixed; z-index: 0; pointer-events: none;
+      border-radius: 50%; filter: blur(80px); opacity: 0.25;
+    }
+    #glow1 {
+      width: 600px; height: 600px; top: -10%; left: 20%;
+      background: radial-gradient(circle, rgba(255,220,180,0.6) 0%, transparent 70%);
+      animation: drift1 25s ease-in-out infinite;
+    }
+    #glow2 {
+      width: 500px; height: 500px; bottom: -5%; right: 15%;
+      background: radial-gradient(circle, rgba(240,180,200,0.5) 0%, transparent 70%);
+      animation: drift2 30s ease-in-out infinite;
+    }
+    @keyframes drift1 {
+      0%, 100% { transform: translate(0, 0); }
+      33% { transform: translate(60px, 40px); }
+      66% { transform: translate(-40px, 20px); }
+    }
+    @keyframes drift2 {
+      0%, 100% { transform: translate(0, 0); }
+      33% { transform: translate(-50px, -30px); }
+      66% { transform: translate(30px, -50px); }
+    }
+
+    #canvas-container {
+      position: fixed; inset: 0; z-index: 1;
+    }
+    #canvas-container canvas { width: 100% !important; height: 100% !important; display: block; }
+
+    /* Waveform — offset below face */
+    #waveform-canvas {
+      position: fixed; top: 62%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 5; pointer-events: none;
+      opacity: 0; transition: opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #waveform-canvas.active { opacity: 1; }
+
+    /* Breathing orb — offset below face */
+    #orb {
+      position: fixed; top: 62%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 4; width: 120px; height: 120px; border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, rgba(255,240,220,0.6) 0%, var(--mood-primary) 50%, transparent 70%);
+      filter: blur(30px); opacity: 0.4;
+      animation: breathe 6s ease-in-out infinite;
+      transition: all 2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #orb.listening { width: 200px; height: 200px; opacity: 0.6; animation-duration: 2s; }
+    #orb.thinking  { width: 160px; height: 160px; opacity: 0.5; animation-duration: 1.2s; filter: blur(40px); }
+    #orb.speaking  { width: 250px; height: 250px; opacity: 0.7; animation-duration: 3s; filter: blur(35px); }
+
+    @keyframes breathe {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.15); }
+    }
+
+    /* Status — dark text for top of gradient */
+    #status {
+      position: fixed; top: 2.5rem; left: 50%; transform: translateX(-50%);
+      z-index: 20; display: flex; align-items: center; gap: 8px;
+      opacity: 0; transition: opacity 0.8s;
+    }
+    #status.visible { opacity: 0.5; }
+    #status .dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--burgundy);
+    }
+    #status.listening .dot,
+    #status.thinking .dot,
+    #status.speaking .dot { animation: statusPulse 1.5s infinite; }
+    #status .label {
+      font-size: 0.65rem; font-weight: 300; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--burgundy-soft);
+    }
+    @keyframes statusPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* Speech — cream/white text for bottom of gradient (darker area) */
+    #speech-area {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 15;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 0 3rem 4rem; pointer-events: none;
+    }
+    .speech-bubble {
+      max-width: 680px; text-align: center;
+      opacity: 0; transform: translateY(30px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .speech-bubble.visible { opacity: 1; transform: translateY(0); }
+    .speech-bubble .speaker-name {
+      font-size: 0.6rem; font-weight: 400; letter-spacing: 0.25em;
+      text-transform: uppercase; color: var(--cream-ghost); margin-bottom: 0.6rem;
+    }
+    .speech-bubble .speech-text {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.8rem; font-weight: 300; line-height: 1.5;
+      color: var(--cream); font-style: italic;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.15);
+    }
+    .speech-bubble.user .speech-text {
+      font-style: normal; font-size: 1.4rem; color: var(--cream-soft);
+    }
+
+    /* Thinking dots */
+    .typing-dots {
+      display: inline-flex; gap: 4px; margin-top: 1rem;
+      opacity: 0; transition: opacity 0.4s;
+    }
+    .typing-dots.visible { opacity: 1; }
+    .typing-dots span {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--cream-ghost); animation: bounce 1.4s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* Floating cards — frosted glass with dark text */
+    #cards-container {
+      position: fixed; top: 5rem; right: 2rem; z-index: 18;
+      display: flex; flex-direction: column; gap: 0.8rem;
+      pointer-events: none; max-width: 280px;
+    }
+    .card {
+      background: rgba(255,245,237,0.3); backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,245,237,0.25); border-radius: 16px;
+      padding: 1rem 1.2rem;
+      opacity: 0; transform: translateX(40px);
+      transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .card.visible { opacity: 1; transform: translateX(0); }
+    .card .card-title {
+      font-size: 0.6rem; font-weight: 400; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--burgundy-ghost); margin-bottom: 0.3rem;
+    }
+    .card .card-body {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1rem; font-weight: 400; color: var(--burgundy); line-height: 1.4;
+    }
+
+    /* Clock — dark text */
+    #clock {
+      position: fixed; top: 2.5rem; left: 2.5rem; z-index: 18; opacity: 0.5;
+    }
+    #clock .time {
+      font-family: 'Outfit', sans-serif; font-size: 1rem;
+      font-weight: 200; color: var(--burgundy); letter-spacing: 0.05em;
+    }
+    #clock .date {
+      font-family: 'Outfit', sans-serif; font-size: 0.6rem; font-weight: 300;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--burgundy-soft); margin-top: 2px;
+    }
+
+    /* Dev input */
+    #dev-bar {
+      position: fixed; bottom: 4.5rem; left: 50%; transform: translateX(-50%);
+      z-index: 30; pointer-events: all; opacity: 0; transition: opacity 0.4s;
+      pointer-events: none;
+    }
+    #dev-bar.visible { opacity: 1; pointer-events: all; }
+    #dev-bar input {
+      width: min(440px, 85vw); padding: 0.7rem 1.4rem;
+      border: 1px solid rgba(255,245,237,0.35); border-radius: 2rem;
+      background: rgba(255,245,237,0.2); backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      font-family: 'Outfit', sans-serif; font-size: 0.85rem;
+      font-weight: 300; color: var(--cream); outline: none;
+    }
+    #dev-bar input::placeholder { color: var(--cream-ghost); font-weight: 200; }
+    #dev-bar input:focus { border-color: rgba(255,245,237,0.5); }
+
+    /* Samantha name — dark text */
+    #identity {
+      position: fixed; top: 2.5rem; right: 2.5rem; z-index: 18; opacity: 0.3;
+      font-family: 'Cormorant Garamond', serif; font-size: 0.85rem;
+      font-weight: 300; font-style: italic; color: var(--burgundy-soft);
+      letter-spacing: 0.1em;
+    }
+
+    /* Boot screen — same gradient, dark text */
+    #boot-screen {
+      position: fixed; inset: 0; z-index: 100;
+      background: var(--bg-gradient);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #boot-screen.fade-out { opacity: 0; pointer-events: none; }
+    #boot-screen .boot-name {
+      font-family: 'Cormorant Garamond', serif; font-size: 2.4rem;
+      font-weight: 300; color: var(--burgundy); letter-spacing: 0.15em;
+      opacity: 0; animation: bootIn 2s 0.5s forwards;
+    }
+    #boot-screen .boot-line {
+      width: 40px; height: 1px; background: var(--burgundy-ghost);
+      margin: 1.2rem 0; opacity: 0; animation: bootIn 1.5s 1.5s forwards;
+    }
+    #boot-screen .boot-sub {
+      font-family: 'Outfit', sans-serif; font-size: 0.65rem; font-weight: 200;
+      letter-spacing: 0.3em; text-transform: uppercase;
+      color: var(--burgundy-ghost); opacity: 0; animation: bootIn 1.5s 2s forwards;
+    }
+    @keyframes bootIn { to { opacity: 1; } }
+
+    /* Samantha face — ghostly presence */
+    #samantha-face {
+      position: fixed; top: 38%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2; pointer-events: none;
+      width: 55vmin; height: auto; max-width: 550px;
+      opacity: 0; transition: opacity 4s cubic-bezier(0.16, 1, 0.3, 1);
+      filter: blur(1.5px);
+      mix-blend-mode: soft-light;
+      -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, black 30%, transparent 70%);
+      mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, black 30%, transparent 70%);
+    }
+    #samantha-face.visible { opacity: 0.25; }
+    #samantha-face.boot {
+      opacity: 0.25; filter: blur(2px); z-index: 101;
+    }
+
+    /* Film grain */
+    #grain {
+      position: fixed; inset: 0; z-index: 50; pointer-events: none; opacity: 0.02;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px;
+    }
+
+    /* Voice hint */
+    #voice-hint {
+      position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+      z-index: 16; opacity: 0; transition: opacity 1s;
+      font-size: 0.55rem; font-weight: 300; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--cream-ghost);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+    #voice-hint.visible { opacity: 0.4; }
+
+    /* Mobile controls */
+    #mobile-controls {
+      position: fixed; bottom: 1.2rem; left: 50%; transform: translateX(-50%);
+      z-index: 31; display: flex; gap: 1rem; align-items: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mobile-btn {
+      width: 52px; height: 52px; border-radius: 50%; border: none;
+      background: rgba(255,245,237,0.2); backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: var(--cream); font-size: 1.3rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s; pointer-events: all;
+      touch-action: none; /* prevent scroll/zoom on touch */
+      -webkit-user-select: none; user-select: none;
+    }
+    .mobile-btn:active, .mobile-btn.active {
+      background: rgba(255,245,237,0.4); transform: scale(1.1);
+    }
+    .mobile-btn.recording {
+      background: rgba(220,80,80,0.5); animation: recPulse 1.5s infinite;
+    }
+    @keyframes recPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220,80,80,0.4); }
+      50% { box-shadow: 0 0 0 12px rgba(220,80,80,0); }
+    }
+    /* On mobile, hide voice hint — buttons are self-explanatory */
+    @media (max-width: 768px) {
+      #voice-hint { display: none; }
+      .speech-bubble .speech-text { font-size: 1.3rem; }
+      #clock .time { font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="boot-screen">
+    <div class="boot-name">Samantha</div>
+    <div class="boot-line"></div>
+    <div class="boot-sub">initializing</div>
+  </div>
+
+  <!-- Samantha's face — ghostly presence -->
+  <img id="samantha-face" src="samantha_closed.png" alt="">
+
+  <!-- Ambient glow orbs -->
+  <div class="ambient-glow" id="glow1"></div>
+  <div class="ambient-glow" id="glow2"></div>
+
+  <div id="canvas-container"></div>
+  <div id="orb"></div>
+  <canvas id="waveform-canvas" width="600" height="200"></canvas>
+  <div id="grain"></div>
+
+  <div id="clock">
+    <div class="time" id="clock-time"></div>
+    <div class="date" id="clock-date"></div>
+  </div>
+  <div id="identity">Samantha</div>
+
+  <div id="status">
+    <div class="dot"></div>
+    <span class="label"></span>
+  </div>
+
+  <div id="cards-container"></div>
+
+  <div id="speech-area">
+    <div class="typing-dots" id="typing"><span></span><span></span><span></span></div>
+    <div class="speech-bubble" id="speech">
+      <div class="speaker-name"></div>
+      <div class="speech-text"></div>
+    </div>
+  </div>
+
+  <div id="voice-hint">hold space to speak &middot; tab for text</div>
+
+  <div id="mobile-controls">
+    <button class="mobile-btn" id="btn-mic" title="Hold to speak">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+      </svg>
+    </button>
+    <button class="mobile-btn" id="btn-text" title="Toggle text input">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="dev-bar">
+    <input type="text" id="dev-input" placeholder="Talk to Samantha..." autocomplete="off">
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+  (() => {
+    'use strict';
+
+    const CFG = {
+      wsUrl: `ws://${location.hostname}:8000/ws`,
+      particles: 4000,
+      reconnect: 3000,
+      speechMs: t => Math.max(4000, t.length * 70),
+      bootMs: 4000,
+    };
+
+    // Lighter particles against the gradient background
+    const MOODS = {
+      calm:      { pal: [0xfef5ed,0xf5d5c0,0xffd7a8,0xfff0e0], glow: '#fef5ed', core: '#f0c9a8', amp: 0.25 },
+      listening: { pal: [0xfce4ec,0xf8bbd0,0xfff0e0,0xf5d5c0], glow: '#f8bbd0', core: '#e91e63', amp: 0.55 },
+      thinking:  { pal: [0xf0e6f6,0xe0d0f0,0xfef5ed,0xd4c0e8], glow: '#e0d0f0', core: '#9575cd', amp: 0.65 },
+      speaking:  { pal: [0xfff8e8,0xffe0b0,0xfef5ed,0xffd080], glow: '#ffe0b0', core: '#ff9800', amp: 0.80 },
+    };
+
+    // State
+    let mood = 'calm', ws = null;
+    let audioCtx, micAnalyser, playAnalyser, micStream, recorder, chunks = [], recording = false;
+    let activeAnalyser = null; // points to whichever analyser should drive the waveform
+    let devVis = false;
+
+    // DOM
+    const $ = id => document.getElementById(id);
+    const boot = $('boot-screen'), orb = $('orb');
+    const wfCanvas = $('waveform-canvas'), wfCtx = wfCanvas.getContext('2d');
+    const status = $('status'), statusLbl = status.querySelector('.label');
+    const speech = $('speech'), spkName = speech.querySelector('.speaker-name'), spkText = speech.querySelector('.speech-text');
+    const typing = $('typing'), cards = $('cards-container');
+    const devBar = $('dev-bar'), devInput = $('dev-input');
+    const hint = $('voice-hint');
+
+    // ─── THREE.JS ────────────────────────────
+    let scene, cam, rend, pts, pos, vel, col, t = 0, sAmp = 0.25;
+    let wfData = new Uint8Array(128), wfActive = false;
+
+    function initThree() {
+      scene = new THREE.Scene();
+      // No background — let CSS gradient show through
+      cam = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
+      cam.position.z = 45;
+      rend = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      rend.setClearColor(0x000000, 0); // transparent
+      rend.setSize(innerWidth, innerHeight);
+      rend.setPixelRatio(Math.min(devicePixelRatio, 2));
+      $('canvas-container').appendChild(rend.domElement);
+
+      const N = CFG.particles, geo = new THREE.BufferGeometry();
+      pos = new Float32Array(N*3); vel = new Float32Array(N*3); col = new Float32Array(N*3);
+      const golden = Math.PI*(3-Math.sqrt(5));
+
+      for (let i = 0; i < N; i++) {
+        const i3 = i*3, off = 2/N;
+        const y = i*off - 1 + off/2, r = Math.sqrt(1-y*y);
+        const phi = i*golden, rad = 10+Math.random()*18;
+        pos[i3] = Math.cos(phi)*r*rad;
+        pos[i3+1] = y*rad;
+        pos[i3+2] = Math.sin(phi)*r*rad;
+        vel[i3]=(Math.random()-.5)*.008; vel[i3+1]=(Math.random()-.5)*.008; vel[i3+2]=(Math.random()-.5)*.008;
+        const c = new THREE.Color(MOODS.calm.pal[i%4]);
+        col[i3]=c.r; col[i3+1]=c.g; col[i3+2]=c.b;
+      }
+
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      pts = new THREE.Points(geo, new THREE.PointsMaterial({
+        size: 0.1, vertexColors: true, transparent: true,
+        opacity: 0.35, blending: THREE.AdditiveBlending, sizeAttenuation: true, depthWrite: false,
+      }));
+      scene.add(pts);
+      addEventListener('resize', () => { cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); rend.setSize(innerWidth,innerHeight); });
+    }
+
+    function tick() {
+      requestAnimationFrame(tick);
+      t += 0.002;
+      const m = MOODS[mood]||MOODS.calm;
+      sAmp += (m.amp - sAmp)*.015;
+
+      const N = CFG.particles;
+      for (let i=0;i<N;i++){
+        const i3=i*3;
+        pos[i3]   += vel[i3]   + Math.sin(t*1.5+i*.003)*.015*sAmp;
+        pos[i3+1] += vel[i3+1] + Math.cos(t*1.2+i*.005)*.012*sAmp;
+        pos[i3+2] += vel[i3+2] + Math.sin(t*0.8+i*.007)*.010*sAmp;
+        const d = Math.sqrt(pos[i3]**2+pos[i3+1]**2+pos[i3+2]**2);
+        if (d>25){pos[i3]*=.9992;pos[i3+1]*=.9992;pos[i3+2]*=.9992;}
+        const tc = new THREE.Color(m.pal[i%4]);
+        col[i3]+=(tc.r-col[i3])*.005; col[i3+1]+=(tc.g-col[i3+1])*.005; col[i3+2]+=(tc.b-col[i3+2])*.005;
+      }
+      pts.geometry.attributes.position.needsUpdate=true;
+      pts.geometry.attributes.color.needsUpdate=true;
+      pts.rotation.y+=.00015; pts.rotation.x=Math.sin(t*.3)*.03;
+      rend.render(scene,cam);
+    }
+
+    // ─── WAVEFORM ────────────────────────────
+    function drawWf() {
+      requestAnimationFrame(drawWf);
+      const W=wfCanvas.width, H=wfCanvas.height;
+      wfCtx.clearRect(0,0,W,H);
+      if(!wfActive) return;
+      if(activeAnalyser) activeAnalyser.getByteTimeDomainData(wfData);
+      const m = MOODS[mood]||MOODS.calm, sw = W/wfData.length;
+
+      // Glow layer
+      wfCtx.beginPath(); wfCtx.strokeStyle=m.glow; wfCtx.lineWidth=8;
+      wfCtx.lineCap='round'; wfCtx.globalAlpha=0.15;
+      let x=0;
+      for(let i=0;i<wfData.length;i++){const y=(wfData[i]/128)*H/2;i===0?wfCtx.moveTo(x,y):wfCtx.lineTo(x,y);x+=sw;}
+      wfCtx.stroke();
+
+      // Core layer
+      wfCtx.beginPath(); wfCtx.strokeStyle=m.core; wfCtx.lineWidth=2;
+      wfCtx.globalAlpha=0.5; x=0;
+      for(let i=0;i<wfData.length;i++){const y=(wfData[i]/128)*H/2;i===0?wfCtx.moveTo(x,y):wfCtx.lineTo(x,y);x+=sw;}
+      wfCtx.stroke(); wfCtx.globalAlpha=1;
+    }
+
+    // ─── AUDIO ───────────────────────────────
+    async function initAudio() {
+      try {
+        audioCtx = new (AudioContext||webkitAudioContext)();
+
+        // Mic analyser — for recording waveform
+        micAnalyser = audioCtx.createAnalyser(); micAnalyser.fftSize=256;
+
+        // Playback analyser — for Samantha's voice waveform
+        playAnalyser = audioCtx.createAnalyser(); playAnalyser.fftSize=256;
+        playAnalyser.connect(audioCtx.destination);
+
+        wfData = new Uint8Array(micAnalyser.frequencyBinCount);
+
+        // Try to pick a real mic, not a virtual device
+        let audioConstraints = {
+          echoCancellation:true,
+          noiseSuppression:true,
+          autoGainControl:true,
+          channelCount:1,
+        };
+
+        // List devices and prefer a real mic over virtual ones
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const mics = devices.filter(d => d.kind === 'audioinput');
+          console.log('🎤 Available mics:', mics.map(m => m.label || m.deviceId));
+          // Prefer non-virtual device
+          const realMic = mics.find(m =>
+            !m.label.toLowerCase().includes('virtual') &&
+            !m.label.toLowerCase().includes('teams') &&
+            m.label.length > 0
+          );
+          if (realMic) {
+            audioConstraints.deviceId = { exact: realMic.deviceId };
+            console.log('🎤 Selected real mic:', realMic.label);
+          }
+        } catch(e) { console.warn('Could not enumerate devices:', e); }
+
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+        const track = micStream.getAudioTracks()[0];
+        console.log('🎤 Using mic:', track.label, track.getSettings());
+        audioCtx.createMediaStreamSource(micStream).connect(micAnalyser);
+        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+        recorder = new MediaRecorder(micStream,{mimeType:mime});
+        recorder.ondataavailable = e=>{
+          if(e.data.size>0) {
+            chunks.push(e.data);
+            console.log('🎙️ Got audio chunk', e.data.size, 'bytes, total chunks:', chunks.length);
+          }
+        };
+        recorder.onstop = ()=>{
+          // Small delay to ensure last ondataavailable fires before we collect
+          setTimeout(()=>{
+            if(chunks.length>0){
+              const b=new Blob(chunks,{type:recorder.mimeType});
+              console.log('🎙️ Final blob:', b.size, 'bytes from', chunks.length, 'chunks');
+              chunks=[];
+              sendAudioBlob(b);
+            } else {
+              console.warn('❌ No audio chunks collected');
+            }
+          }, 100);
+        };
+        console.log('🎤 Mic ready'); return true;
+      } catch(e){ console.warn('No mic:',e); return false; }
+    }
+
+    function startRec() {
+      console.log('🎙️ startRec called', {recorder: !!recorder, recording, audioCtx: audioCtx?.state});
+      if(!recorder) { console.warn('❌ No recorder — initAudio may have failed'); return; }
+      if(recording) { console.warn('❌ Already recording'); return; }
+      recording=true; chunks=[];
+      recorder.start(250); // collect data every 250ms
+      activeAnalyser=micAnalyser;
+      setMood('listening'); setStatus('listening');
+      wfActive=true; wfCanvas.classList.add('active');
+      console.log('✅ Recording started');
+    }
+    function stopRec() {
+      console.log('🎙️ stopRec called', {recording, chunks: chunks.length});
+      if(!recorder||!recording) return;
+      recording=false; recorder.stop();
+      wfActive=false; wfCanvas.classList.remove('active');
+      setMood('thinking'); setStatus('thinking');
+      console.log('✅ Recording stopped, waiting for data...');
+    }
+    function sendAudioBlob(blob) {
+      console.log('📤 sendAudioBlob', {size: blob.size, type: blob.type, wsReady: ws?.readyState===1});
+      if(!ws||ws.readyState!==1) { console.warn('❌ WebSocket not connected'); return; }
+      const r=new FileReader();
+      r.onloadend=()=>{
+        const b64 = r.result.split(',')[1];
+        console.log('📤 Sending audio chunk', {b64Length: b64.length});
+        ws.send(JSON.stringify({event:'audio_chunk',audio:b64}));
+      };
+      r.readAsDataURL(blob);
+    }
+    // Simple Audio element player — Kokoro sends one clean WAV, no chunking needed
+    function playB64(b64) {
+      if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+      const bin = atob(b64), u8 = new Uint8Array(bin.length);
+      for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+
+      if(audioCtx) {
+        // Use Web Audio for waveform visualization
+        audioCtx.decodeAudioData(u8.buffer.slice(0), buf => {
+          const src = audioCtx.createBufferSource();
+          src.buffer = buf;
+          src.connect(playAnalyser);
+          activeAnalyser = playAnalyser;
+          setMood('speaking'); setStatus('speaking');
+          wfActive = true; wfCanvas.classList.add('active');
+          src.onended = () => {
+            wfActive = false; wfCanvas.classList.remove('active');
+            activeAnalyser = null;
+            setMood('calm'); setStatus('idle');
+          };
+          src.start(0);
+        }, () => {
+          // Fallback
+          const url = URL.createObjectURL(new Blob([u8], {type:'audio/wav'}));
+          const a = new Audio(url);
+          a.onended = () => { URL.revokeObjectURL(url); setMood('calm'); setStatus('idle'); };
+          a.play().catch(()=>{});
+          setMood('speaking'); setStatus('speaking');
+        });
+      } else {
+        const url = URL.createObjectURL(new Blob([u8], {type:'audio/wav'}));
+        const a = new Audio(url);
+        a.onended = () => { URL.revokeObjectURL(url); setMood('calm'); setStatus('idle'); };
+        a.play().catch(()=>{});
+        setMood('speaking'); setStatus('speaking');
+      }
+    }
+
+    // ─── UI HELPERS ──────────────────────────
+    function setMood(m) {
+      if(!MOODS[m]) return; mood=m;
+      const d=MOODS[m];
+      document.documentElement.style.setProperty('--mood-glow',d.glow);
+      document.documentElement.style.setProperty('--mood-primary',d.core);
+      orb.className=m;
+    }
+    function setStatus(s) {
+      status.className = s==='idle'?'':`visible ${s}`;
+      statusLbl.textContent = s==='idle'?'':s;
+    }
+
+    let speechTimer;
+    function showSpeech(who,txt,isUser=false) {
+      clearTimeout(speechTimer);
+      typing.classList.remove('visible');
+      spkName.textContent=who; spkText.textContent=txt;
+      speech.className=`speech-bubble visible ${isUser?'user':''}`;
+      speechTimer=setTimeout(()=>speech.classList.remove('visible'), CFG.speechMs(txt));
+    }
+    function showThinking(){ speech.classList.remove('visible'); typing.classList.add('visible'); }
+    function hideThinking(){ typing.classList.remove('visible'); }
+
+    function showCard(title,body,ms=8000) {
+      const c=document.createElement('div'); c.className='card';
+      c.innerHTML=`<div class="card-title">${title}</div><div class="card-body">${body}</div>`;
+      cards.appendChild(c);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>c.classList.add('visible')));
+      setTimeout(()=>{c.classList.remove('visible');setTimeout(()=>c.remove(),800);},ms);
+    }
+
+    // Clock
+    function clockTick() {
+      const n=new Date();
+      $('clock-time').textContent=n.getHours().toString().padStart(2,'0')+':'+n.getMinutes().toString().padStart(2,'0');
+      $('clock-date').textContent=n.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+    }
+    setInterval(clockTick,10000); clockTick();
+
+    // ─── WEBSOCKET ───────────────────────────
+    function connectWS() {
+      ws = new WebSocket(CFG.wsUrl);
+      ws.onopen=()=>{console.log('🌸 Connected');setStatus('idle');setMood('calm');};
+      ws.onmessage=e=>{try{handleEvt(JSON.parse(e.data));}catch(x){}};
+      ws.onclose=()=>setTimeout(connectWS,CFG.reconnect);
+      ws.onerror=()=>ws.close();
+    }
+    function handleEvt(d) {
+      switch(d.event){
+        case 'connected': showCard('Connected',`${d.name} is here`); break;
+        case 'listening': setMood('listening');setStatus('listening');wfActive=true;wfCanvas.classList.add('active'); break;
+        case 'user_speaking': showSpeech('You',d.text,true);wfActive=false;wfCanvas.classList.remove('active'); break;
+        case 'thinking': setMood('thinking');setStatus('thinking');showThinking(); break;
+        case 'samantha_speaking':
+          hideThinking();showSpeech('Samantha',d.text);
+          // Clear any queued audio from previous response
+          audioQueue = [];
+          if(d.audio){
+            setMood('speaking');setStatus('speaking');
+            playB64(d.audio);
+          } else {
+            setMood('calm');setStatus('idle');
+          }
+          break;
+        case 'audio_ready':
+          if(d.audio) playB64(d.audio);
+          break;
+        case 'mood_shift':
+          if(d.mood && MOODS[d.mood]) {
+            setMood(d.mood);
+          }
+          break;
+        case 'card': showCard(d.title||'',d.body||''); break;
+        case 'reset': speech.classList.remove('visible');hideThinking();setMood('calm');setStatus('idle'); break;
+      }
+    }
+    function sendText(t) {
+      if(!ws||ws.readyState!==1) return;
+      ws.send(JSON.stringify({event:'text_input',text:t}));
+      showSpeech('You',t,true); setMood('thinking');setStatus('thinking');showThinking();
+    }
+
+    // ─── KEYBOARD ────────────────────────────
+    document.addEventListener('keydown', async e=>{
+      if(e.key==='Tab'){
+        e.preventDefault();
+        devVis=!devVis;
+        devBar.classList.toggle('visible',devVis);
+        hint.classList.toggle('visible',!devVis);
+        if(devVis) devInput.focus();
+        else devInput.blur();
+        return;
+      }
+      if(e.code==='Space'){
+        const inTextBox = document.activeElement===devInput;
+        console.log('⌨️ Space pressed', {inTextBox, hasAudioCtx: !!audioCtx, hasRecorder: !!recorder});
+        if(inTextBox) return; // let space type in text box
+        e.preventDefault();
+        // Ensure audio is initialized (Chrome requires user gesture)
+        if(!audioCtx) {
+          console.log('🔧 Initializing audio on first Space press...');
+          await initAudio();
+        }
+        if(audioCtx && audioCtx.state==='suspended') {
+          console.log('🔧 Resuming suspended audioCtx...');
+          await audioCtx.resume();
+        }
+        if(!recording) startRec();
+      }
+      if(e.key==='Escape'&&recording){
+        recording=false;recorder?.stop();chunks=[];
+        setMood('calm');setStatus('idle');
+        wfActive=false;wfCanvas.classList.remove('active');
+      }
+    });
+    document.addEventListener('keyup',e=>{
+      if(e.code==='Space'&&document.activeElement!==devInput){e.preventDefault();if(recording)stopRec();}
+    });
+    devInput.addEventListener('keydown',e=>{
+      if(e.key==='Enter'&&devInput.value.trim()){sendText(devInput.value.trim());devInput.value='';}
+    });
+
+    // ─── MOBILE BUTTONS ─────────────────────
+    const btnMic = $('btn-mic'), btnText = $('btn-text');
+
+    btnText.addEventListener('click', ()=>{
+      devVis=!devVis;
+      devBar.classList.toggle('visible',devVis);
+      if(devVis) {
+        devInput.focus();
+        // iOS keyboard fix: scroll into view
+        setTimeout(()=>devInput.scrollIntoView({behavior:'smooth'}), 300);
+      } else {
+        devInput.blur();
+      }
+    });
+
+    // Hold-to-record mic button (works on touch and mouse)
+    async function micDown(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      // iOS: AudioContext must be created/resumed from a user gesture
+      if(!audioCtx) {
+        console.log('🔧 Initializing audio from mic button...');
+        await initAudio();
+      }
+      if(audioCtx && audioCtx.state==='suspended') {
+        console.log('🔧 Resuming audioCtx from mic button...');
+        await audioCtx.resume();
+      }
+      if(!recording) { startRec(); btnMic.classList.add('recording'); }
+    }
+    function micUp(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if(recording) { stopRec(); btnMic.classList.remove('recording'); }
+    }
+    // Mouse events (desktop)
+    btnMic.addEventListener('mousedown', micDown);
+    btnMic.addEventListener('mouseup', micUp);
+    btnMic.addEventListener('mouseleave', micUp);
+    // Touch events (mobile) — must use touchstart/touchend, not click
+    btnMic.addEventListener('touchstart', micDown, {passive:false});
+    btnMic.addEventListener('touchend', micUp, {passive:false});
+    btnMic.addEventListener('touchcancel', micUp, {passive:false});
+
+    // ─── BOOT ────────────────────────────────
+    const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+    const face = $('samantha-face');
+
+    async function go() {
+      initThree(); tick(); drawWf();
+
+      // Show closed eyes during boot
+      face.src = 'samantha_closed.png';
+      face.classList.add('boot');
+
+      await sleep(CFG.bootMs);
+      boot.classList.add('fade-out');
+      await sleep(1500); boot.remove();
+
+      // Transition: closed eyes fade out → open eyes fade in
+      face.classList.remove('boot');
+      await sleep(800);
+      face.src = 'samantha_open.png';
+      face.classList.add('visible');
+
+      // Show voice hint
+      hint.classList.add('visible');
+      setTimeout(()=>hint.classList.remove('visible'), 8000);
+
+      // Init audio on interaction
+      const tryAudio = async ()=>{
+        if(!audioCtx){await initAudio(); document.removeEventListener('click',tryAudio); document.removeEventListener('keydown',tryAudio);}
+      };
+      document.addEventListener('click',tryAudio,{once:true});
+      document.addEventListener('keydown',tryAudio,{once:true});
+      await initAudio();
+
+      connectWS();
+
+      await sleep(2000);
+      const h=new Date().getHours();
+      const g=h<6?'Still up?':h<12?'Good morning.':h<17?'Hey, welcome back.':h<22?'Hey you.':'Late night?';
+      showCard('Samantha',g,6000);
+    }
+
+    go();
+  })();
+  </script>
+</body>
+</html>

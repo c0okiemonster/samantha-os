@@ -1,0 +1,88 @@
+# ─────────────────────────────────────────────────
+# Samantha OS — Settings
+# ─────────────────────────────────────────────────
+
+audio:
+  sample_rate: 16000
+  channels: 1
+  silence_duration_ms: 800
+
+stt:
+  model: "base"           # tiny|base|small|medium|large-v3
+  language: "en"          # "en" or "auto" for multilingual
+  device: "cpu"
+
+tts:
+  engine: "kokoro"
+  voice: "af_heart"       # af_heart (warm), af_nicole (soft/intimate), af_bella (rich), af_sarah (clear)
+  speed: 1.0              # 0.8 = slower, 1.2 = faster
+  # Dynamic voice: Samantha switches to af_nicole for intimate moments automatically
+
+llm:
+  provider: "ollama"
+  model: "gemma2:9b"
+  temperature: 0.85        # slightly higher for more creative/natural responses
+  max_tokens: 500          # allow longer responses when topic warrants it
+  context_window: 8192
+
+memory:
+  db_path: "config/samantha_memory.db"
+  embed_model: "nomic-embed-text"
+  fact_extraction: true     # LLM extracts facts from every conversation
+  episode_summaries: true   # LLM summarizes sessions on shutdown
+  news_digest_interval: 1800  # 30 min between news digest cycles
+
+visual:
+  theme: "her"
+  particle_count: 4000
+  fullscreen: true
+
+# ─────────────────────────────────────────────────
+# Integrations
+# ─────────────────────────────────────────────────
+integrations:
+
+  # ── FREE (no API key) ─────────────────────────
+
+  weather:
+    enabled: true
+    latitude: 55.87
+    longitude: 12.83
+    location: "Landskrona"
+    timezone: "Europe/Stockholm"
+
+  web_search:
+    enabled: true            # DuckDuckGo instant answers + deep search
+
+  notes:
+    enabled: true
+    db_path: "config/samantha_memory.db"
+
+  news:
+    enabled: true
+    feeds:
+      tech: "https://feeds.arstechnica.com/arstechnica/index"
+      ai: "https://techcrunch.com/category/artificial-intelligence/feed/"
+      world: "http://feeds.bbci.co.uk/news/world/rss.xml"
+      sweden: "https://www.svt.se/nyheter/rss.xml"
+      science: "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml"
+      gaming: "https://www.gamespot.com/feeds/mashup/"
+
+  # ── GOOGLE (requires OAuth) ───────────────────
+
+  google:
+    enabled: false
+    credentials_file: "config/google_credentials.json"
+    token_file: "config/google_token.json"
+
+  # ── MICROSOFT 365 (requires Azure AD) ─────────
+
+  ms365:
+    enabled: false
+    token_file: "config/ms365_token.json"
+
+  # ── SPOTIFY (requires Developer app) ──────────
+
+  spotify:
+    enabled: false
+    token_file: "config/spotify_token.json"

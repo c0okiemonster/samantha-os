@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# Environment
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Audio artifacts
+*.wav
+*.mp3
+*.flac
+
+# Models (downloaded at runtime)
+models/
+services/tts/models/
+services/stt/models/
+
+# Samantha's memory (personal data — never commit)
+config/samantha_memory.db
+config/samantha_memory.db-*
+config/db/
+config/google_credentials.json
+config/google_token.json
+config/ms365_token.json
+config/spotify_token.json
+
+# Logs
+*.log
+/tmp/
+
+# Claude/Superpowers
+.claude/
+docs/superpowers/
+
+# Docker
+.docker/

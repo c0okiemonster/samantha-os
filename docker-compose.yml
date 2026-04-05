@@ -1,0 +1,83 @@
+services:
+  # ─── Visual Shell ───────────────────────
+  visual-shell:
+    build: ./services/visual-shell
+    ports:
+      - "3333:3333"
+    depends_on:
+      - orchestrator
+    restart: unless-stopped
+
+  # ─── Orchestrator ───────────────────────
+  orchestrator:
+    build: ./services/orchestrator
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_HOST=host.docker.internal:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma2:9b}
+      - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
+      - OLLAMA_CTX=4096
+      - NEWS_DIGEST_INTERVAL=${NEWS_DIGEST_INTERVAL:-1800}
+      - STT_HOST=stt:8001
+      - TTS_HOST=tts:8002
+      - PERSONALITY_FILE=/app/config/personality.yml
+      - SETTINGS_FILE=/app/config/settings.yml
+      - PROACTIVE_INTERVAL=120
+      - LOG_LEVEL=info
+      # Optional integration credentials (from .env file)
+      - MS365_CLIENT_ID=${MS365_CLIENT_ID:-}
+      - MS365_CLIENT_SECRET=${MS365_CLIENT_SECRET:-}
+      - MS365_TENANT_ID=${MS365_TENANT_ID:-common}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+    volumes:
+      - ./config:/app/config
+      - samantha-memory:/app/config/db
+    depends_on:
+      stt:
+        condition: service_healthy
+      tts:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── STT (Faster-Whisper) ───────────────
+  stt:
+    build: ./services/stt
+    ports:
+      - "8001:8001"
+    environment:
+      - WHISPER_MODEL=base
+      - WHISPER_DEVICE=cpu
+      - WHISPER_LANGUAGE=en
+    volumes:
+      - whisper-models:/root/.cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # ─── TTS ────────────────────────────────
+  # ─── TTS (Kokoro) ────────────────────────
+  tts:
+    build: ./services/tts
+    ports:
+      - "8002:8002"
+    environment:
+      - KOKORO_VOICE=${KOKORO_VOICE:-samantha}
+      - KOKORO_SPEED=${KOKORO_SPEED:-0.90}
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+    restart: unless-stopped
+
+volumes:
+  whisper-models:
+  samantha-memory:

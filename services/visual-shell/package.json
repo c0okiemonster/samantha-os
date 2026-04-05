@@ -1,0 +1,9 @@
+{
+  "name": "samantha-visual-shell",
+  "version": "0.1.0",
+  "description": "Ambient visual shell for Samantha OS",
+  "private": true,
+  "dependencies": {
+    "http-server": "^14.1.1"
+  }
+}

@@ -322,6 +322,84 @@
       .speech-bubble .speech-text { font-size: 1.3rem; }
       #clock .time { font-size: 0.85rem; }
     }
+
+    /* ─── Overlay card ──────────────────────────────────────────────── */
+    #overlay-card {
+      position: fixed;
+      top: 5.5rem;
+      right: 1.6rem;
+      width: 280px;
+      padding: 1.2rem 1.4rem 1.1rem;
+      background: rgba(254,245,237,0.58);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border: 1px solid rgba(92,32,48,0.08);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(58,15,28,0.18);
+      color: #3a0f1c;
+      z-index: 40;
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
+                  transform 0.7s cubic-bezier(0.16,1,0.3,1);
+    }
+    #overlay-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    #overlay-card .kicker {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.58rem; font-weight: 500;
+      letter-spacing: 0.22em; text-transform: uppercase;
+      color: #7a3a48;
+      margin-bottom: 0.45rem;
+    }
+    #overlay-card .title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.45rem; font-weight: 400;
+      line-height: 1.25; color: #3a0f1c;
+    }
+    #overlay-card .when {
+      margin-top: 0.5rem;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem; font-weight: 400;
+      color: #5c2030; opacity: 0.8;
+      letter-spacing: 0.08em;
+    }
+    #overlay-card ul {
+      list-style: none; margin-top: 0.6rem; padding: 0;
+    }
+    #overlay-card li {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.05rem;
+      padding: 0.25rem 0;
+      color: #3a0f1c;
+      border-bottom: 1px solid rgba(92,32,48,0.08);
+    }
+    #overlay-card li.new {
+      background: linear-gradient(90deg, rgba(255,220,180,0.5), transparent);
+      padding-left: 0.5rem; border-radius: 4px;
+      border-bottom-color: transparent;
+      font-weight: 500;
+    }
+    #overlay-card li.new::before { content: '✦ '; color: #c45878; }
+    #overlay-card .progress {
+      height: 2px;
+      background: rgba(92,32,48,0.15);
+      border-radius: 2px;
+      margin-top: 0.9rem;
+      overflow: hidden;
+    }
+    #overlay-card .progress .bar {
+      display: block;
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #5c2030, #9a5a68);
+      transform-origin: left;
+      transform: scaleX(1);
+    }
   </style>
 </head>
 <body>
@@ -357,6 +435,14 @@
   </div>
 
   <div id="cards-container"></div>
+
+  <div id="overlay-card" aria-live="polite">
+    <div class="kicker"></div>
+    <div class="title"></div>
+    <div class="when"></div>
+    <ul class="items"></ul>
+    <div class="progress"><span class="bar"></span></div>
+  </div>
 
   <div id="speech-area">
     <div class="typing-dots" id="typing"><span></span><span></span><span></span></div>
@@ -690,6 +776,124 @@
     }
     setInterval(clockTick,10000); clockTick();
 
+    // ─── Chime stub (filled in Task 17) ──────────────────────────────
+    function playChime() { /* filled in Task 17 */ }
+
+    // ─── Overlay card component ──────────────────────────────────────
+    const Overlay = (() => {
+      const el = document.getElementById('overlay-card');
+      const kickerEl = el.querySelector('.kicker');
+      const titleEl = el.querySelector('.title');
+      const whenEl = el.querySelector('.when');
+      const listEl = el.querySelector('.items');
+      const bar = el.querySelector('.progress .bar');
+
+      let dismissTimer = null;
+      let progressStart = 0;
+      let progressDuration = 25000;
+      let remainingOnPause = null;
+      const queue = [];
+      let busy = false;
+
+      function kickerText(payload) {
+        if (payload.kind === 'list' && payload.list_name) {
+          return payload.list_name;
+        }
+        if (payload.kind === 'schedule_heads_up') return 'Up next';
+        return payload.kind;
+      }
+
+      function render(payload) {
+        kickerEl.textContent = kickerText(payload);
+        titleEl.textContent = payload.title || '';
+        whenEl.textContent = payload.when || '';
+        whenEl.style.display = payload.when ? '' : 'none';
+
+        listEl.innerHTML = '';
+        if (payload.items && Array.isArray(payload.items)) {
+          payload.items.forEach((text, idx) => {
+            const li = document.createElement('li');
+            li.textContent = text;
+            if (idx === payload.highlight_index) li.classList.add('new');
+            listEl.appendChild(li);
+          });
+          listEl.style.display = '';
+        } else {
+          listEl.style.display = 'none';
+        }
+
+        bar.style.transition = 'none';
+        bar.style.transform = 'scaleX(1)';
+      }
+
+      function startProgress(durationMs) {
+        progressDuration = durationMs;
+        progressStart = performance.now();
+        void bar.offsetWidth;
+        bar.style.transition = `transform ${durationMs}ms linear`;
+        bar.style.transform = 'scaleX(0)';
+      }
+
+      function scheduleDismiss(ms) {
+        clearTimeout(dismissTimer);
+        dismissTimer = setTimeout(dismiss, ms);
+      }
+
+      function show(payload) {
+        if (busy) {
+          queue.push(payload);
+          return;
+        }
+        busy = true;
+        render(payload);
+        el.classList.add('visible');
+
+        if (payload.chime) playChime();
+
+        const duration = payload.duration_ms || 25000;
+        startProgress(duration);
+        scheduleDismiss(duration);
+      }
+
+      function dismiss() {
+        clearTimeout(dismissTimer);
+        dismissTimer = null;
+        el.classList.remove('visible');
+        setTimeout(() => {
+          busy = false;
+          const next = queue.shift();
+          if (next) {
+            setTimeout(() => show(next), 400);
+          }
+        }, 700);
+      }
+
+      el.addEventListener('mouseenter', () => {
+        if (!dismissTimer) return;
+        clearTimeout(dismissTimer);
+        dismissTimer = null;
+        const elapsed = performance.now() - progressStart;
+        remainingOnPause = Math.max(0, progressDuration - elapsed);
+        const computed = getComputedStyle(bar).transform;
+        bar.style.transition = 'none';
+        bar.style.transform = computed;
+      });
+      el.addEventListener('mouseleave', () => {
+        if (remainingOnPause == null) return;
+        const extended = remainingOnPause + 5000;
+        progressStart = performance.now();
+        progressDuration = extended;
+        void bar.offsetWidth;
+        bar.style.transition = `transform ${extended}ms linear`;
+        bar.style.transform = 'scaleX(0)';
+        scheduleDismiss(extended);
+        remainingOnPause = null;
+      });
+      el.addEventListener('click', dismiss);
+
+      return { show };
+    })();
+
     // ─── WEBSOCKET ───────────────────────────
     function connectWS() {
       ws = new WebSocket(CFG.wsUrl);
@@ -725,6 +929,9 @@
           break;
         case 'card': showCard(d.title||'',d.body||''); break;
         case 'reset': speech.classList.remove('visible');hideThinking();setMood('calm');setStatus('idle'); break;
+        case 'overlay_card':
+          Overlay.show(d);
+          break;
       }
     }
     function sendText(t) {

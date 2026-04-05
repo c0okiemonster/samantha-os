@@ -780,6 +780,7 @@
     const Chime = (() => {
       let audioCtx = null;
       let buffer = null;
+      let unlocked = false;
 
       async function load() {
         try {
@@ -789,14 +790,35 @@
           if (!resp.ok) throw new Error(`chime fetch: ${resp.status}`);
           const arr = await resp.arrayBuffer();
           buffer = await audioCtx.decodeAudioData(arr);
-          console.log('🔔 chime loaded');
+          console.log('🔔 chime loaded (state=' + audioCtx.state + ')');
         } catch (e) {
           console.warn('chime load failed', e);
         }
       }
 
+      // Chrome autoplay policy: AudioContext created before a user gesture
+      // starts in 'suspended' state. Resume on the first click/keypress.
+      function attachUnlock() {
+        const unlock = () => {
+          if (!audioCtx || unlocked) return;
+          audioCtx.resume().then(() => {
+            unlocked = true;
+            console.log('🔔 chime unlocked');
+          }).catch(() => {});
+          document.removeEventListener('click', unlock);
+          document.removeEventListener('keydown', unlock);
+          document.removeEventListener('touchstart', unlock);
+        };
+        document.addEventListener('click', unlock, { once: false });
+        document.addEventListener('keydown', unlock, { once: false });
+        document.addEventListener('touchstart', unlock, { once: false });
+      }
+
       function play() {
-        if (!audioCtx || !buffer) return;
+        if (!audioCtx || !buffer) {
+          console.warn('chime play: not ready (ctx=' + !!audioCtx + ', buf=' + !!buffer + ')');
+          return;
+        }
         if (audioCtx.state === 'suspended') {
           audioCtx.resume().catch(() => {});
         }
@@ -808,7 +830,7 @@
         src.start();
       }
 
-      return { load, play };
+      return { load, play, attachUnlock };
     })();
 
     function playChime() { Chime.play(); }
@@ -948,8 +970,6 @@
         case 'thinking': setMood('thinking');setStatus('thinking');showThinking(); break;
         case 'samantha_speaking':
           hideThinking();showSpeech('Samantha',d.text);
-          // Clear any queued audio from previous response
-          audioQueue = [];
           if(d.audio){
             setMood('speaking');setStatus('speaking');
             playB64(d.audio);
@@ -1097,6 +1117,7 @@
       await initAudio();
 
       Chime.load();
+      Chime.attachUnlock();
       connectWS();
 
       await sleep(2000);

@@ -1528,7 +1528,7 @@
       let speechStart = 0;
       let animFrame = null;
 
-      const THRESHOLD = 2;     // RMS amplitude 0-128 (low for RODE AI-1)
+      const THRESHOLD = 3;     // RMS 0-128. Ambient ~1.0, speech ~5+. Must be above ambient so silence detection works.
       const SILENCE_MS = 1500; // silence after speech → stop, send, restart
       const MAX_SILENCE_CHUNKS = 40; // cap chunks to ~10s so silence doesn't bloat the blob
       let _debugCount = 0;

@@ -1288,7 +1288,8 @@
         loading = true;
         try {
           const types = Array.from(selectedTypes).join(',');
-          const url = `/memory/timeline?types=${encodeURIComponent(types)}&limit=100`
+          const base = `http://${location.hostname}:8000`;
+          const url = `${base}/memory/timeline?types=${encodeURIComponent(types)}&limit=100`
             + (nextBefore ? `&before=${encodeURIComponent(nextBefore)}` : '');
           const resp = await fetch(url);
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1401,7 +1402,7 @@
         if (rowEl) rowEl.style.opacity = '0';
 
         try {
-          const resp = await fetch(`/memory/entry/${entryType}/${numId}`, { method: 'DELETE' });
+          const resp = await fetch(`http://${location.hostname}:8000/memory/entry/${entryType}/${numId}`, { method: 'DELETE' });
           if (!resp.ok && resp.status !== 204) throw new Error(`HTTP ${resp.status}`);
         } catch (e) {
           console.warn('Delete failed', e);
@@ -1428,7 +1429,7 @@
 
         const [entryType, numId] = entry.id.split(':');
         try {
-          await fetch(`/memory/entry/${entryType}/${numId}/restore`, { method: 'POST' });
+          await fetch(`http://${location.hostname}:8000/memory/entry/${entryType}/${numId}/restore`, { method: 'POST' });
         } catch (e) {
           console.warn('Restore failed', e);
         }

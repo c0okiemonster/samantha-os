@@ -1528,9 +1528,10 @@
       let speechStart = 0;
       let animFrame = null;
 
-      const THRESHOLD = 15;    // RMS amplitude 0-128
+      const THRESHOLD = 5;     // RMS amplitude 0-128 (lowered from 15 — mic sensitivity varies)
       const SPEECH_MS = 300;   // speech must exceed threshold this long
       const SILENCE_MS = 1500; // silence must last this long to stop recording
+      let _debugCount = 0;
 
       function monitor() {
         if (!enabled) return;
@@ -1543,6 +1544,7 @@
           return;
         }
         if (!micAnalyser) {
+          if (_debugCount++ % 300 === 0) console.warn('🎤 WakeWord: micAnalyser is null — initAudio may have failed');
           animFrame = requestAnimationFrame(monitor);
           return;
         }
@@ -1554,6 +1556,11 @@
           sum += v * v;
         }
         const rms = Math.sqrt(sum / data.length) * 128;
+
+        // Periodic debug: log RMS level every ~5 seconds so the user can see mic activity
+        if (_debugCount++ % 300 === 0) {
+          console.log(`🎤 VAD rms=${rms.toFixed(1)} threshold=${THRESHOLD} mood=${mood} speaking=${speaking} recording=${recording}`);
+        }
 
         if (rms > THRESHOLD) {
           silenceStart = 0;

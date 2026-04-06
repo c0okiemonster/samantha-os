@@ -1528,10 +1528,12 @@
       let speechStart = 0;
       let animFrame = null;
 
-      const THRESHOLD = 3;     // RMS 0-128. Ambient ~1.0, speech ~5+. Must be above ambient so silence detection works.
-      const SILENCE_MS = 1500; // silence after speech → stop, send, restart
-      const MAX_SILENCE_CHUNKS = 40; // cap chunks to ~10s so silence doesn't bloat the blob
+      const THRESHOLD = 1.2;   // RMS 0-128. RODE AI-1 ambient ~0.7, speech ~1.5+
+      const SILENCE_MS = 1500; // sustained silence after speech → stop, send, restart
+      const MAX_CHUNK_SECONDS = 15; // max recording length before forced send (~60 chunks)
+      const MAX_CHUNKS = 60;
       let _debugCount = 0;
+      let _restarting = false; // prevents monitor from restarting during onstop processing
 
       function monitor() {
         if (!enabled) return;
@@ -1539,10 +1541,6 @@
         if (mood === 'speaking') {
           speaking = false;
           silenceStart = 0;
-          // Pause recording while she speaks to avoid capturing her voice
-          if (recording) {
-            chunks = []; // discard any chunks of her voice
-          }
           animFrame = requestAnimationFrame(monitor);
           return;
         }
@@ -1552,8 +1550,8 @@
           return;
         }
 
-        // Ensure recorder is always running in wake mode
-        if (!recording && enabled) {
+        // Ensure recorder is always running in wake mode (but not during restart window)
+        if (!recording && enabled && !_restarting) {
           audioSource = 'wake';
           startRec();
         }
@@ -1578,29 +1576,73 @@
         } else {
           // Silence
           if (speaking && recording) {
-            // Speech just ended — wait for sustained silence
             if (!silenceStart) silenceStart = Date.now();
             if (Date.now() - silenceStart > SILENCE_MS) {
-              speaking = false;
-              silenceStart = 0;
-              console.log(`🎤 Wake: end of speech, sending ${chunks.length} chunks`);
-              stopRec();
-              // Restart recording after a brief pause so the pipeline
-              // can process the current audio without overlap
+              _sendAndRestart();
+            }
+          }
+        }
+
+        // Safety: if recording runs too long (user talking non-stop), force-send
+        if (speaking && recording && chunks.length >= MAX_CHUNKS) {
+          _sendAndRestart();
+        }
+
+        animFrame = requestAnimationFrame(monitor);
+      }
+
+      function _sendAndRestart() {
+        speaking = false;
+        silenceStart = 0;
+        _restarting = true; // block monitor from restarting immediately
+        console.log(`🎤 Wake: sending ${chunks.length} chunks`);
+
+        // Save chunks before stopRec clears state
+        const savedChunks = chunks.slice();
+        stopRec();
+
+        // The onstop handler normally sends. But there's a race where
+        // the monitor restarts recording (clearing chunks) before onstop fires.
+        // We use _restarting flag + manual blob send as a safety net.
+        if (savedChunks.length > 0) {
+          const mimeType = recorder ? recorder.mimeType : 'audio/webm;codecs=opus';
+          const blob = new Blob(savedChunks, { type: mimeType });
+          if (blob.size > 500) {
+            console.log(`🎤 Wake: manual blob ${blob.size} bytes from ${savedChunks.length} chunks`);
+            audioSource = 'wake';
+            // Read as base64 and send
+            const r = new FileReader();
+            r.onloadend = () => {
+              const b64 = r.result.split(',')[1];
+              if (ws && ws.readyState === 1 && b64) {
+                ws.send(JSON.stringify({event:'audio_chunk', audio:b64, source:'wake'}));
+                console.log(`🎤 Wake: sent ${b64.length} b64 chars`);
+              }
+              // Restart recording after send is queued
               setTimeout(() => {
+                _restarting = false;
                 if (enabled && !recording) {
                   audioSource = 'wake';
                   startRec();
                 }
-              }, 500);
+              }, 300);
+            };
+            r.readAsDataURL(blob);
+          } else {
+            // Too small — probably just silence, skip
+            _restarting = false;
+            if (enabled && !recording) {
+              audioSource = 'wake';
+              startRec();
             }
-          } else if (!speaking && recording && chunks.length > MAX_SILENCE_CHUNKS) {
-            // Pure silence for too long — flush chunks to prevent memory growth
-            // (keep recorder running, just clear the buffer)
-            chunks = [];
+          }
+        } else {
+          _restarting = false;
+          if (enabled && !recording) {
+            audioSource = 'wake';
+            startRec();
           }
         }
-        animFrame = requestAnimationFrame(monitor);
       }
 
       async function enable() {
@@ -1613,7 +1655,7 @@
         enabled = true;
         speaking = false;
         silenceStart = 0;
-        // Start recording immediately — always capturing, just like PTT
+        _restarting = false;
         audioSource = 'wake';
         startRec();
         monitor();
@@ -1627,6 +1669,7 @@
       function disable() {
         enabled = false;
         speaking = false;
+        _restarting = false;
         if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
         if (recording) stopRec();
         localStorage.setItem('samantha.wake.enabled', 'false');

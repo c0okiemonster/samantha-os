@@ -1528,26 +1528,36 @@
       let speechStart = 0;
       let animFrame = null;
 
-      const THRESHOLD = 5;     // RMS amplitude 0-128 (lowered from 15 — mic sensitivity varies)
-      const SPEECH_MS = 300;   // speech must exceed threshold this long
-      const SILENCE_MS = 1500; // silence must last this long to stop recording
+      const THRESHOLD = 2;     // RMS amplitude 0-128 (low for RODE AI-1)
+      const SILENCE_MS = 1500; // silence after speech → stop, send, restart
+      const MAX_SILENCE_CHUNKS = 40; // cap chunks to ~10s so silence doesn't bloat the blob
       let _debugCount = 0;
 
       function monitor() {
         if (!enabled) return;
         // Suppress while Samantha is speaking to prevent feedback loop
         if (mood === 'speaking') {
-          speechStart = 0;
-          silenceStart = 0;
           speaking = false;
+          silenceStart = 0;
+          // Pause recording while she speaks to avoid capturing her voice
+          if (recording) {
+            chunks = []; // discard any chunks of her voice
+          }
           animFrame = requestAnimationFrame(monitor);
           return;
         }
         if (!micAnalyser) {
-          if (_debugCount++ % 300 === 0) console.warn('🎤 WakeWord: micAnalyser is null — initAudio may have failed');
+          if (_debugCount++ % 300 === 0) console.warn('🎤 WakeWord: micAnalyser is null');
           animFrame = requestAnimationFrame(monitor);
           return;
         }
+
+        // Ensure recorder is always running in wake mode
+        if (!recording && enabled) {
+          audioSource = 'wake';
+          startRec();
+        }
+
         const data = new Uint8Array(micAnalyser.fftSize);
         micAnalyser.getByteTimeDomainData(data);
         let sum = 0;
@@ -1557,30 +1567,37 @@
         }
         const rms = Math.sqrt(sum / data.length) * 128;
 
-        // Periodic debug: log RMS level every ~5 seconds so the user can see mic activity
         if (_debugCount++ % 300 === 0) {
-          console.log(`🎤 VAD rms=${rms.toFixed(1)} threshold=${THRESHOLD} mood=${mood} speaking=${speaking} recording=${recording}`);
+          console.log(`🎤 VAD rms=${rms.toFixed(1)} thr=${THRESHOLD} mood=${mood} speaking=${speaking} rec=${recording} chunks=${chunks.length}`);
         }
 
         if (rms > THRESHOLD) {
+          // Speech detected
           silenceStart = 0;
-          if (!speaking && !recording) {
-            if (!speechStart) speechStart = Date.now();
-            if (Date.now() - speechStart > SPEECH_MS) {
-              speaking = true;
-              audioSource = 'wake';
-              startRec();
-            }
-          }
+          speaking = true;
         } else {
-          speechStart = 0;
+          // Silence
           if (speaking && recording) {
+            // Speech just ended — wait for sustained silence
             if (!silenceStart) silenceStart = Date.now();
             if (Date.now() - silenceStart > SILENCE_MS) {
               speaking = false;
               silenceStart = 0;
+              console.log(`🎤 Wake: end of speech, sending ${chunks.length} chunks`);
               stopRec();
+              // Restart recording after a brief pause so the pipeline
+              // can process the current audio without overlap
+              setTimeout(() => {
+                if (enabled && !recording) {
+                  audioSource = 'wake';
+                  startRec();
+                }
+              }, 500);
             }
+          } else if (!speaking && recording && chunks.length > MAX_SILENCE_CHUNKS) {
+            // Pure silence for too long — flush chunks to prevent memory growth
+            // (keep recorder running, just clear the buffer)
+            chunks = [];
           }
         }
         animFrame = requestAnimationFrame(monitor);
@@ -1595,20 +1612,23 @@
         }
         enabled = true;
         speaking = false;
-        speechStart = 0;
         silenceStart = 0;
+        // Start recording immediately — always capturing, just like PTT
+        audioSource = 'wake';
+        startRec();
         monitor();
         localStorage.setItem('samantha.wake.enabled', 'true');
         if (ws && ws.readyState === 1) {
           ws.send(JSON.stringify({event: 'wake_mode', enabled: true}));
         }
-        console.log('🎤 WakeWord enabled');
+        console.log('🎤 WakeWord enabled (recorder always on)');
       }
 
       function disable() {
         enabled = false;
         speaking = false;
         if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+        if (recording) stopRec();
         localStorage.setItem('samantha.wake.enabled', 'false');
         if (ws && ws.readyState === 1) {
           ws.send(JSON.stringify({event: 'wake_mode', enabled: false}));

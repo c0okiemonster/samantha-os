@@ -1024,12 +1024,15 @@ async def ws_endpoint(ws: WebSocket):
 
             if data.get("event") == "audio_chunk":
                 import base64
+                source = data.get("source", "ptt")
+                logger.info(f"🎤 audio_chunk received, source={source}, b64_len={len(data.get('audio',''))}")
                 audio_bytes = base64.b64decode(data["audio"])
                 user_text = await transcribe(audio_bytes)
+                logger.info(f"🎤 STT result: '{user_text[:80]}' (source={source})")
                 if not user_text.strip():
+                    logger.info("🎤 STT returned empty — discarding")
                     continue
-                # Wake mode filtering
-                source = data.get("source", "ptt")
+                # Wake mode filtering (source already read above)
                 if source == "wake" and state.wake_mode.get(ws, False):
                     prefix, remainder = detect_wake_prefix(user_text)
                     if prefix is None:

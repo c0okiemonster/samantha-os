@@ -840,7 +840,7 @@
 
     // State
     let mood = 'calm', ws = null;
-    let audioCtx, micAnalyser, playAnalyser, micStream, recorder, chunks = [], recording = false;
+    let audioCtx, micAnalyser, playAnalyser, micStream, micSourceNode, recorder, chunks = [], recording = false;
     let audioSource = 'ptt'; // 'ptt' or 'wake' — included in audio_chunk events
     let activeAnalyser = null; // points to whichever analyser should drive the waveform
     let devVis = false;
@@ -984,7 +984,8 @@
         micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
         const track = micStream.getAudioTracks()[0];
         console.log('🎤 Using mic:', track.label, track.getSettings());
-        audioCtx.createMediaStreamSource(micStream).connect(micAnalyser);
+        micSourceNode = audioCtx.createMediaStreamSource(micStream);
+        micSourceNode.connect(micAnalyser);
         const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
         recorder = new MediaRecorder(micStream,{mimeType:mime});
         recorder.ondataavailable = e=>{

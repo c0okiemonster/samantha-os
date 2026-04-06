@@ -775,6 +775,7 @@
     // State
     let mood = 'calm', ws = null;
     let audioCtx, micAnalyser, playAnalyser, micStream, recorder, chunks = [], recording = false;
+    let audioSource = 'ptt'; // 'ptt' or 'wake' — included in audio_chunk events
     let activeAnalyser = null; // points to whichever analyser should drive the waveform
     let devVis = false;
 
@@ -969,7 +970,7 @@
       r.onloadend=()=>{
         const b64 = r.result.split(',')[1];
         console.log('📤 Sending audio chunk', {b64Length: b64.length});
-        ws.send(JSON.stringify({event:'audio_chunk',audio:b64}));
+        ws.send(JSON.stringify({event:'audio_chunk', audio:b64, source: audioSource}));
       };
       r.readAsDataURL(blob);
     }
@@ -1454,6 +1455,106 @@
       }
     });
 
+    // ─── Wake Word module ────────────────────────────────────────────
+    const WakeWord = (() => {
+      let enabled = false;
+      let speaking = false;
+      let silenceStart = 0;
+      let speechStart = 0;
+      let animFrame = null;
+
+      const THRESHOLD = 15;    // RMS amplitude 0-128
+      const SPEECH_MS = 300;   // speech must exceed threshold this long
+      const SILENCE_MS = 1500; // silence must last this long to stop recording
+
+      function monitor() {
+        if (!enabled) return;
+        // Suppress while Samantha is speaking to prevent feedback loop
+        if (mood === 'speaking') {
+          speechStart = 0;
+          silenceStart = 0;
+          speaking = false;
+          animFrame = requestAnimationFrame(monitor);
+          return;
+        }
+        if (!micAnalyser) {
+          animFrame = requestAnimationFrame(monitor);
+          return;
+        }
+        const data = new Uint8Array(micAnalyser.fftSize);
+        micAnalyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / data.length) * 128;
+
+        if (rms > THRESHOLD) {
+          silenceStart = 0;
+          if (!speaking && !recording) {
+            if (!speechStart) speechStart = Date.now();
+            if (Date.now() - speechStart > SPEECH_MS) {
+              speaking = true;
+              audioSource = 'wake';
+              startRec();
+            }
+          }
+        } else {
+          speechStart = 0;
+          if (speaking && recording) {
+            if (!silenceStart) silenceStart = Date.now();
+            if (Date.now() - silenceStart > SILENCE_MS) {
+              speaking = false;
+              silenceStart = 0;
+              stopRec();
+            }
+          }
+        }
+        animFrame = requestAnimationFrame(monitor);
+      }
+
+      async function enable() {
+        if (enabled) return;
+        if (!micAnalyser) await initAudio();
+        if (!micAnalyser) {
+          console.warn('🎤 WakeWord: mic not available');
+          return;
+        }
+        enabled = true;
+        speaking = false;
+        speechStart = 0;
+        silenceStart = 0;
+        monitor();
+        localStorage.setItem('samantha.wake.enabled', 'true');
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({event: 'wake_mode', enabled: true}));
+        }
+        console.log('🎤 WakeWord enabled');
+      }
+
+      function disable() {
+        enabled = false;
+        speaking = false;
+        if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+        localStorage.setItem('samantha.wake.enabled', 'false');
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({event: 'wake_mode', enabled: false}));
+        }
+        console.log('🎤 WakeWord disabled');
+      }
+
+      function isEnabled() { return enabled; }
+
+      async function restoreFromStorage() {
+        if (localStorage.getItem('samantha.wake.enabled') === 'true') {
+          await enable();
+        }
+      }
+
+      return { enable, disable, isEnabled, restoreFromStorage };
+    })();
+
     // ─── Chime ───────────────────────────────────────────────────────
     const Chime = (() => {
       let audioCtx = null;
@@ -1631,7 +1732,12 @@
     // ─── WEBSOCKET ───────────────────────────
     function connectWS() {
       ws = new WebSocket(CFG.wsUrl);
-      ws.onopen=()=>{console.log('🌸 Connected');setStatus('idle');setMood('calm');};
+      ws.onopen=()=>{
+        console.log('🌸 Connected');setStatus('idle');setMood('calm');
+        if (WakeWord && WakeWord.isEnabled()) {
+          ws.send(JSON.stringify({event: 'wake_mode', enabled: true}));
+        }
+      };
       ws.onmessage=e=>{
         let d;
         try { d = JSON.parse(e.data); } catch(x) { console.error('WS parse error', x); return; }
@@ -1729,7 +1835,7 @@
           console.log('🔧 Resuming suspended audioCtx...');
           await audioCtx.resume();
         }
-        if(!recording) startRec();
+        if(!recording) { audioSource = 'ptt'; startRec(); }
       }
       if(e.key==='Escape'&&recording){
         recording=false;recorder?.stop();chunks=[];
@@ -1772,7 +1878,7 @@
         console.log('🔧 Resuming audioCtx from mic button...');
         await audioCtx.resume();
       }
-      if(!recording) { startRec(); btnMic.classList.add('recording'); }
+      if(!recording) { audioSource = 'ptt'; startRec(); btnMic.classList.add('recording'); }
     }
     function micUp(e) {
       e.preventDefault();
@@ -1825,6 +1931,7 @@
       Chime.load();
       Chime.attachUnlock();
       Vision.restoreFromStorage();
+      WakeWord.restoreFromStorage();
       connectWS();
 
       await sleep(2000);

@@ -34,6 +34,7 @@ from integrations.vision import VisionIntegration
 from integrations.vision.models import SnapshotError
 from integrations.vision.store import VisionStore
 from intents import IntentRouter
+from wake import detect_wake_prefix
 
 # Optional integrations (imported conditionally)
 try:
@@ -87,6 +88,7 @@ class SamanthaState:
         self.tasks_integration: TasksIntegration | None = None
         self.vision_integration: VisionIntegration | None = None
         self.pending_snapshots: dict = {}  # req_id → asyncio.Future[str]
+        self.wake_mode: dict = {}  # WebSocket → bool
         self.summarizer = ConversationSummarizer()
         self.proactive = ProactiveBehavior()
         self._session_start: str = datetime.now().isoformat()
@@ -1026,6 +1028,21 @@ async def ws_endpoint(ws: WebSocket):
                 user_text = await transcribe(audio_bytes)
                 if not user_text.strip():
                     continue
+                # Wake mode filtering
+                source = data.get("source", "ptt")
+                if source == "wake" and state.wake_mode.get(ws, False):
+                    prefix, remainder = detect_wake_prefix(user_text)
+                    if prefix is None:
+                        logger.debug(f"🎤 Wake: discarded (no prefix): {user_text[:60]}")
+                        continue
+                    if not remainder:
+                        # Wake-only — warm acknowledgment
+                        ack = "Mm?"
+                        await ws.send_json({"event": "samantha_speaking", "text": ack, "mood": "calm"})
+                        asyncio.create_task(_send_audio(ws, {"text": ack, "tts_text": ack}))
+                        continue
+                    user_text = remainder
+                    logger.info(f"🎤 Wake: stripped '{prefix}' → {user_text[:60]}")
                 await ws.send_json({"event": "user_speaking", "text": user_text})
                 await ws.send_json({"event": "thinking"})
                 # Spawn process_message as a task so the WS handler can keep
@@ -1081,6 +1098,11 @@ async def ws_endpoint(ws: WebSocket):
                     else:
                         fut.set_result(data.get("image", ""))
 
+            elif data.get("event") == "wake_mode":
+                state.wake_mode[ws] = data.get("enabled", False)
+                logger.info(f"🎤 Wake mode {'on' if data.get('enabled') else 'off'}")
+
     except WebSocketDisconnect:
         state.clients.remove(ws)
+        state.wake_mode.pop(ws, None)
         logger.info(f"🖥️  Shell disconnected ({len(state.clients)})")

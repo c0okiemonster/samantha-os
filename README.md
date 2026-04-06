@@ -93,6 +93,13 @@ She's not a tool. She's a companion you can spin up in Docker.
 - **Infinite scroll** — scroll near the bottom to load older entries automatically.
 - **Privacy-first** — everything is text, stored locally in the SQLite DB alongside her other memories. Nothing leaves your machine.
 
+### Wake Word
+- **"Hey Samantha"** — click the mic-waves toggle in the top-right to enable always-listening mode. When she hears her name, she responds. Say "Hey Samantha, what's the weather?" and she processes "what's the weather?" as if you'd pressed the space bar.
+- **No new dependencies** — wake detection uses the existing Faster-Whisper STT. The browser monitors mic amplitude (VAD) and auto-records when it detects speech; the orchestrator checks if the transcript starts with a "samantha" prefix.
+- **PTT always works** — space bar push-to-talk is unaffected by wake mode. Press space and speak without any prefix.
+- **Feedback-loop safe** — the VAD monitor pauses while Samantha is speaking so she doesn't listen to her own voice.
+- **State persists** across page reloads via `localStorage`. On reconnect, the browser re-sends wake mode state to the orchestrator.
+
 ### Proactive
 - Auto-greets when you connect (introduces herself on first meeting)
 - Morning briefing with weather + news + follow-ups from past conversations

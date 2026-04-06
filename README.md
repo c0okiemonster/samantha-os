@@ -181,7 +181,7 @@ On first launch, Samantha introduces herself and asks your name. From there, the
 | Service | Port | Tech | Purpose |
 |:---|:---:|:---|:---|
 | **visual-shell** | 3333 | Three.js, WebSocket | Fullscreen ambient UI with particles + face |
-| **orchestrator** | 8000 | FastAPI, Python | The brain — conversation, memory, mood, integrations |
+| **orchestrator** | 9100 | FastAPI, Python | The brain — conversation, memory, mood, integrations |
 | **stt** | 8001 | Faster-Whisper | Speech-to-text |
 | **tts** | 8002 | Kokoro KPipeline | Text-to-speech with blended voice |
 | **ollama** (host) | 11434 | Metal/CUDA | LLM + embeddings (runs on host for GPU) |
@@ -315,7 +315,7 @@ system_prompt: |
 ### Example: Talk to her via curl
 
 ```bash
-curl -X POST http://localhost:8000/chat/text \
+curl -X POST http://localhost:9100/chat/text \
   -H "Content-Type: application/json" \
   -d '{"text": "Hey, what do you know about me?"}'
 ```
@@ -394,7 +394,7 @@ The LLM sees all known entities before extracting new facts, so it asks *"is thi
 **Query her memory:**
 
 ```bash
-curl http://localhost:8000/memory | jq
+curl http://localhost:9100/memory | jq
 # Returns facts grouped by subject:
 # {
 #   "facts_by_subject": {
@@ -537,7 +537,7 @@ for r in c.execute('SELECT id, raw_description, spoken_text FROM observations WH
 "
 
 # Wipe all observations (and other tables)
-curl -X POST http://127.0.0.1:8000/reset-all
+curl -X POST http://127.0.0.1:9100/reset-all
 ```
 
 ### Swapping the VLM

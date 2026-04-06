@@ -820,8 +820,10 @@
   (() => {
     'use strict';
 
+    const ORCH_PORT = 9100;
     const CFG = {
-      wsUrl: `ws://${location.hostname}:8000/ws`,
+      wsUrl: `ws://${location.hostname}:${ORCH_PORT}/ws`,
+      apiBase: `http://${location.hostname}:${ORCH_PORT}`,
       particles: 4000,
       reconnect: 3000,
       speechMs: t => Math.max(4000, t.length * 70),
@@ -1289,7 +1291,7 @@
         loading = true;
         try {
           const types = Array.from(selectedTypes).join(',');
-          const base = `http://${location.hostname}:8000`;
+          const base = `${CFG.apiBase}`;
           const url = `${base}/memory/timeline?types=${encodeURIComponent(types)}&limit=100`
             + (nextBefore ? `&before=${encodeURIComponent(nextBefore)}` : '');
           const resp = await fetch(url);
@@ -1403,7 +1405,7 @@
         if (rowEl) rowEl.style.opacity = '0';
 
         try {
-          const resp = await fetch(`http://${location.hostname}:8000/memory/entry/${entryType}/${numId}`, { method: 'DELETE' });
+          const resp = await fetch(`${CFG.apiBase}/memory/entry/${entryType}/${numId}`, { method: 'DELETE' });
           if (!resp.ok && resp.status !== 204) throw new Error(`HTTP ${resp.status}`);
         } catch (e) {
           console.warn('Delete failed', e);
@@ -1430,7 +1432,7 @@
 
         const [entryType, numId] = entry.id.split(':');
         try {
-          await fetch(`http://${location.hostname}:8000/memory/entry/${entryType}/${numId}/restore`, { method: 'POST' });
+          await fetch(`${CFG.apiBase}/memory/entry/${entryType}/${numId}/restore`, { method: 'POST' });
         } catch (e) {
           console.warn('Restore failed', e);
         }
@@ -1720,7 +1722,7 @@
       async function load() {
         try {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const url = `http://${location.hostname}:8000/static/chime.wav`;
+          const url = `${CFG.apiBase}/static/chime.wav`;
           const resp = await fetch(url);
           if (!resp.ok) throw new Error(`chime fetch: ${resp.status}`);
           const arr = await resp.arrayBuffer();

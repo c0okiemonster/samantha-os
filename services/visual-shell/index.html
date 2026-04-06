@@ -794,6 +794,25 @@
     <input type="text" id="dev-input" placeholder="Talk to Samantha..." autocomplete="off">
   </div>
 
+  <div id="timeline-panel" role="dialog" aria-label="Samantha's Memory" aria-hidden="true">
+    <div class="timeline-inner">
+      <header class="timeline-header">
+        <h2>Samantha's Memory</h2>
+        <button class="timeline-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="timeline-filters">
+        <button class="chip active" data-type="fact">Facts</button>
+        <button class="chip active" data-type="observation">Observations</button>
+        <button class="chip active" data-type="episode">Episodes</button>
+        <button class="chip active" data-type="mood">Moods</button>
+        <button class="chip" data-type="entity">Entities</button>
+        <button class="chip" data-type="news">News</button>
+      </div>
+      <div class="timeline-scroll"></div>
+    </div>
+    <div class="timeline-toast"></div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
   <script>
@@ -2008,24 +2027,5 @@
     go();
   })();
   </script>
-
-  <div id="timeline-panel" role="dialog" aria-label="Samantha's Memory" aria-hidden="true">
-    <div class="timeline-inner">
-      <header class="timeline-header">
-        <h2>Samantha's Memory</h2>
-        <button class="timeline-close" type="button" aria-label="Close">×</button>
-      </header>
-      <div class="timeline-filters">
-        <button class="chip active" data-type="fact">Facts</button>
-        <button class="chip active" data-type="observation">Observations</button>
-        <button class="chip active" data-type="episode">Episodes</button>
-        <button class="chip active" data-type="mood">Moods</button>
-        <button class="chip" data-type="entity">Entities</button>
-        <button class="chip" data-type="news">News</button>
-      </div>
-      <div class="timeline-scroll"></div>
-    </div>
-    <div class="timeline-toast"></div>
-  </div>
 </body>
 </html>

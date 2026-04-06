@@ -995,7 +995,14 @@
           }
         };
         recorder.onstop = ()=>{
-          // Small delay to ensure last ondataavailable fires before we collect
+          // In wake mode, _sendAndRestart handles the send manually
+          // (it saves chunks before stopRec to avoid the race condition).
+          // Skip the onstop send to prevent double-sending.
+          if (audioSource === 'wake') {
+            chunks = [];
+            return;
+          }
+          // PTT mode: normal onstop send
           setTimeout(()=>{
             if(chunks.length>0){
               const b=new Blob(chunks,{type:recorder.mimeType});

@@ -434,11 +434,268 @@
       background: rgba(196, 88, 120, 0.25);
       border-color: rgba(196, 88, 120, 0.55);
       box-shadow: 0 0 12px rgba(196, 88, 120, 0.5);
-      animation: visionGlow 2.4s ease-in-out infinite;
+      animation: toggleGlow 2.4s ease-in-out infinite;
     }
-    @keyframes visionGlow {
+    @keyframes toggleGlow {
       0%, 100% { box-shadow: 0 0 10px rgba(196, 88, 120, 0.4); }
       50%      { box-shadow: 0 0 18px rgba(196, 88, 120, 0.75); }
+    }
+
+    /* ─── Memory timeline toggle ─────────────────────────────────────── */
+    #timeline-toggle {
+      position: fixed;
+      top: 3.8rem;
+      right: 6rem;
+      z-index: 50;
+      width: 2.4rem;
+      height: 2.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 1px solid rgba(58, 15, 28, 0.25);
+      border-radius: 50%;
+      background: rgba(254, 245, 237, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #3a0f1c;
+      opacity: 0.8;
+      transition: opacity 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      padding: 0;
+    }
+    #timeline-toggle:hover {
+      opacity: 1;
+      background: rgba(254, 245, 237, 0.7);
+    }
+    #timeline-toggle.active {
+      opacity: 1;
+      background: rgba(196, 88, 120, 0.25);
+      border-color: rgba(196, 88, 120, 0.55);
+      box-shadow: 0 0 12px rgba(196, 88, 120, 0.5);
+      animation: toggleGlow 2.4s ease-in-out infinite;
+    }
+
+    /* ─── Wake word toggle ───────────────────────────────────────── */
+    #wake-toggle {
+      position: fixed;
+      top: 3.8rem;
+      right: 10rem;
+      z-index: 50;
+      width: 2.4rem;
+      height: 2.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 1px solid rgba(58, 15, 28, 0.25);
+      border-radius: 50%;
+      background: rgba(254, 245, 237, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #3a0f1c;
+      opacity: 0.8;
+      transition: opacity 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      padding: 0;
+    }
+    #wake-toggle:hover {
+      opacity: 1;
+      background: rgba(254, 245, 237, 0.7);
+    }
+    #wake-toggle.active {
+      opacity: 1;
+      background: rgba(196, 88, 120, 0.25);
+      border-color: rgba(196, 88, 120, 0.55);
+      box-shadow: 0 0 12px rgba(196, 88, 120, 0.5);
+      animation: toggleGlow 2.4s ease-in-out infinite;
+    }
+
+    /* ─── Memory timeline panel ─────────────────────────────────────── */
+    #timeline-panel {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(254, 245, 237, 0.94);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      overflow-y: auto;
+    }
+    #timeline-panel.visible {
+      opacity: 1;
+      pointer-events: auto;
+      cursor: default;
+    }
+    #timeline-panel .timeline-inner {
+      max-width: 720px;
+      margin: 4rem auto 6rem;
+      padding: 2rem 2.5rem;
+    }
+    #timeline-panel .timeline-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 1.2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(92, 32, 48, 0.15);
+    }
+    #timeline-panel .timeline-header h2 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
+      font-weight: 400;
+      font-style: italic;
+      color: #3a0f1c;
+      margin: 0;
+    }
+    #timeline-panel .timeline-close {
+      background: transparent;
+      border: none;
+      color: #3a0f1c;
+      font-size: 1.6rem;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+      padding: 0.2rem 0.6rem;
+    }
+    #timeline-panel .timeline-close:hover { opacity: 1; }
+
+    #timeline-panel .timeline-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.6rem;
+    }
+    #timeline-panel .chip {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #3a0f1c;
+      background: rgba(254, 245, 237, 0.5);
+      border: 1px solid rgba(58, 15, 28, 0.2);
+      border-radius: 999px;
+      padding: 0.35rem 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease;
+      opacity: 0.65;
+    }
+    #timeline-panel .chip:hover { opacity: 0.9; }
+    #timeline-panel .chip.active {
+      background: #3a0f1c;
+      color: #fef5ed;
+      opacity: 1;
+    }
+
+    #timeline-panel .day-bucket {
+      margin-bottom: 2rem;
+    }
+    #timeline-panel .day-bucket-header {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #7a3a48;
+      margin-bottom: 0.6rem;
+      opacity: 0.75;
+    }
+    #timeline-panel .entry {
+      position: relative;
+      padding: 0.7rem 2rem 0.7rem 0.9rem;
+      border-radius: 8px;
+      transition: background 0.2s ease, opacity 0.3s ease;
+    }
+    #timeline-panel .entry:hover { background: rgba(92, 32, 48, 0.06); }
+    #timeline-panel .entry .entry-kicker {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.58rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #7a3a48;
+      margin-right: 0.6rem;
+    }
+    #timeline-panel .entry .entry-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 0.95rem;
+      font-style: italic;
+      color: #3a0f1c;
+    }
+    #timeline-panel .entry .entry-body {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.05rem;
+      color: #3a0f1c;
+      margin-top: 0.15rem;
+      line-height: 1.4;
+    }
+    #timeline-panel .entry-delete {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: #3a0f1c;
+      font-size: 1.1rem;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      padding: 0.2rem 0.5rem;
+    }
+    #timeline-panel .entry:hover .entry-delete { opacity: 0.5; }
+    #timeline-panel .entry-delete:hover { opacity: 1 !important; }
+
+    #timeline-panel .timeline-empty {
+      text-align: center;
+      color: #7a3a48;
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 1.1rem;
+      padding: 3rem 1rem;
+    }
+    #timeline-panel .timeline-footer {
+      text-align: center;
+      color: #7a3a48;
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 0.9rem;
+      padding: 1.5rem 0;
+      opacity: 0.7;
+    }
+    #timeline-panel .timeline-toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(58, 15, 28, 0.92);
+      color: #fef5ed;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.82rem;
+      padding: 0.7rem 1.2rem;
+      border-radius: 999px;
+      box-shadow: 0 6px 24px rgba(58, 15, 28, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 70;
+    }
+    #timeline-panel .timeline-toast.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #timeline-panel .timeline-toast .undo-btn {
+      background: transparent;
+      border: none;
+      color: #fef5ed;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-left: 0.5rem;
+      padding: 0;
     }
   </style>
 </head>
@@ -468,7 +725,31 @@
     <div class="date" id="clock-date"></div>
   </div>
   <div id="identity">Samantha</div>
-  <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">👁</button>
+  <button id="wake-toggle" type="button" title="Wake word off — click to enable 'Hey Samantha'" aria-label="Toggle wake word">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <path d="M1 8a15 15 0 0 0 4 3" opacity="0.5"/>
+      <path d="M23 8a15 15 0 0 1-4 3" opacity="0.5"/>
+    </svg>
+  </button>
+  <button id="timeline-toggle" type="button" title="Memory — click to open" aria-label="Open memory timeline">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="5" cy="6" r="1.5"/>
+      <line x1="9" y1="6" x2="20" y2="6"/>
+      <circle cx="5" cy="12" r="1.5"/>
+      <line x1="9" y1="12" x2="20" y2="12"/>
+      <circle cx="5" cy="18" r="1.5"/>
+      <line x1="9" y1="18" x2="20" y2="18"/>
+    </svg>
+  </button>
+  <button id="vision-toggle" type="button" title="Vision is off — click to let Samantha see" aria-label="Toggle vision">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  </button>
 
   <div id="status">
     <div class="dot"></div>
@@ -514,14 +795,35 @@
     <input type="text" id="dev-input" placeholder="Talk to Samantha..." autocomplete="off">
   </div>
 
+  <div id="timeline-panel" role="dialog" aria-label="Samantha's Memory" aria-hidden="true">
+    <div class="timeline-inner">
+      <header class="timeline-header">
+        <h2>Samantha's Memory</h2>
+        <button class="timeline-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="timeline-filters">
+        <button class="chip active" data-type="fact">Facts</button>
+        <button class="chip active" data-type="observation">Observations</button>
+        <button class="chip active" data-type="episode">Episodes</button>
+        <button class="chip active" data-type="mood">Moods</button>
+        <button class="chip" data-type="entity">Entities</button>
+        <button class="chip" data-type="news">News</button>
+      </div>
+      <div class="timeline-scroll"></div>
+    </div>
+    <div class="timeline-toast"></div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
   <script>
   (() => {
     'use strict';
 
+    const ORCH_PORT = 9100;
     const CFG = {
-      wsUrl: `ws://${location.hostname}:8000/ws`,
+      wsUrl: `ws://${location.hostname}:${ORCH_PORT}/ws`,
+      apiBase: `http://${location.hostname}:${ORCH_PORT}`,
       particles: 4000,
       reconnect: 3000,
       speechMs: t => Math.max(4000, t.length * 70),
@@ -538,7 +840,8 @@
 
     // State
     let mood = 'calm', ws = null;
-    let audioCtx, micAnalyser, playAnalyser, micStream, recorder, chunks = [], recording = false;
+    let audioCtx, micAnalyser, playAnalyser, micStream, micSourceNode, recorder, chunks = [], recording = false;
+    let audioSource = 'ptt'; // 'ptt' or 'wake' — included in audio_chunk events
     let activeAnalyser = null; // points to whichever analyser should drive the waveform
     let devVis = false;
 
@@ -681,7 +984,8 @@
         micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
         const track = micStream.getAudioTracks()[0];
         console.log('🎤 Using mic:', track.label, track.getSettings());
-        audioCtx.createMediaStreamSource(micStream).connect(micAnalyser);
+        micSourceNode = audioCtx.createMediaStreamSource(micStream);
+        micSourceNode.connect(micAnalyser);
         const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
         recorder = new MediaRecorder(micStream,{mimeType:mime});
         recorder.ondataavailable = e=>{
@@ -691,7 +995,14 @@
           }
         };
         recorder.onstop = ()=>{
-          // Small delay to ensure last ondataavailable fires before we collect
+          // In wake mode, _sendAndRestart handles the send manually
+          // (it saves chunks before stopRec to avoid the race condition).
+          // Skip the onstop send to prevent double-sending.
+          if (audioSource === 'wake') {
+            chunks = [];
+            return;
+          }
+          // PTT mode: normal onstop send
           setTimeout(()=>{
             if(chunks.length>0){
               const b=new Blob(chunks,{type:recorder.mimeType});
@@ -733,7 +1044,7 @@
       r.onloadend=()=>{
         const b64 = r.result.split(',')[1];
         console.log('📤 Sending audio chunk', {b64Length: b64.length});
-        ws.send(JSON.stringify({event:'audio_chunk',audio:b64}));
+        ws.send(JSON.stringify({event:'audio_chunk', audio:b64, source: audioSource}));
       };
       r.readAsDataURL(blob);
     }
@@ -919,8 +1230,7 @@
     // ─── Vision toggle wiring ───────────────────────────────────────
     const visionToggleEl = document.getElementById('vision-toggle');
     function renderVisionToggle() {
-      // Single glyph for both states; styling (via .active class) shows on/off.
-      visionToggleEl.textContent = '👁';
+      // Icon is an inline SVG in the DOM; we only toggle class + title here.
       if (Vision.isEnabled()) {
         visionToggleEl.classList.add('active');
         visionToggleEl.title = 'Vision is on — click to close';
@@ -940,6 +1250,477 @@
     // Re-render after restore-from-storage has had a chance to resolve
     setTimeout(renderVisionToggle, 500);
 
+    // ─── Memory Timeline module ──────────────────────────────────────
+    const Timeline = (() => {
+      const panel = document.getElementById('timeline-panel');
+      const scrollEl = panel.querySelector('.timeline-scroll');
+      const filtersEl = panel.querySelector('.timeline-filters');
+      const closeBtn = panel.querySelector('.timeline-close');
+      const toastEl = panel.querySelector('.timeline-toast');
+
+      let isOpen = false;
+      let loading = false;
+      let entries = [];
+      let nextBefore = null;
+      let hasMore = false;
+      let selectedTypes = new Set(['fact', 'observation', 'episode', 'mood']);
+      const pendingDeletes = new Map(); // entry.id → timeout handle
+
+      function open() {
+        if (isOpen) return;
+        isOpen = true;
+        panel.classList.add('visible');
+        panel.setAttribute('aria-hidden', 'false');
+        entries = [];
+        nextBefore = null;
+        hasMore = false;
+        scrollEl.innerHTML = '';
+        load();
+      }
+
+      function close() {
+        if (!isOpen) return;
+        isOpen = false;
+        panel.classList.remove('visible');
+        panel.setAttribute('aria-hidden', 'true');
+        hideToast();
+      }
+
+      function toggle() {
+        if (isOpen) close(); else open();
+      }
+
+      async function load() {
+        if (loading) return;
+        if (selectedTypes.size === 0) {
+          renderEmpty('Pick a filter above');
+          return;
+        }
+        loading = true;
+        try {
+          const types = Array.from(selectedTypes).join(',');
+          const base = `${CFG.apiBase}`;
+          const url = `${base}/memory/timeline?types=${encodeURIComponent(types)}&limit=100`
+            + (nextBefore ? `&before=${encodeURIComponent(nextBefore)}` : '');
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          entries = entries.concat(data.entries || []);
+          nextBefore = data.next_before;
+          hasMore = !!data.has_more;
+          render();
+        } catch (e) {
+          console.warn('Timeline load failed', e);
+          renderEmpty("Can't reach memory right now");
+        } finally {
+          loading = false;
+        }
+      }
+
+      function bucketFor(ts) {
+        if (!ts) return 'Earlier';
+        const d = new Date(ts);
+        const now = new Date();
+        const msPerDay = 86400000;
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const entryDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const dayDiff = Math.floor((today - entryDay) / msPerDay);
+        if (dayDiff === 0) return 'Today';
+        if (dayDiff === 1) return 'Yesterday';
+        if (dayDiff < 7) return 'This week';
+        if (dayDiff < 14) return 'Last week';
+        return 'Earlier';
+      }
+
+      const KICKER_FOR_TYPE = {
+        fact: 'FACT',
+        entity: 'ENTITY',
+        observation: 'OBS',
+        episode: 'EPISODE',
+        mood: 'MOOD',
+        news: 'NEWS',
+      };
+
+      function renderEmpty(msg) {
+        scrollEl.innerHTML = `<div class="timeline-empty">${escapeHtml(msg)}</div>`;
+      }
+
+      function render() {
+        if (entries.length === 0) {
+          renderEmpty('Nothing here yet. Keep talking to me.');
+          return;
+        }
+        const bucketOrder = ['Today', 'Yesterday', 'This week', 'Last week', 'Earlier'];
+        const buckets = new Map();
+        for (const e of entries) {
+          const b = bucketFor(e.ts);
+          if (!buckets.has(b)) buckets.set(b, []);
+          buckets.get(b).push(e);
+        }
+        let html = '';
+        for (const label of bucketOrder) {
+          if (!buckets.has(label)) continue;
+          html += `<div class="day-bucket">`;
+          html += `<div class="day-bucket-header">${label}</div>`;
+          for (const e of buckets.get(label)) {
+            html += renderEntry(e);
+          }
+          html += `</div>`;
+        }
+        if (hasMore) {
+          html += `<div class="timeline-footer"><button class="load-more" type="button">Load older…</button></div>`;
+        } else if (entries.length > 0) {
+          html += `<div class="timeline-footer">That's everything.</div>`;
+        }
+        scrollEl.innerHTML = html;
+
+        scrollEl.querySelectorAll('.entry-delete').forEach(btn => {
+          btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const id = btn.dataset.id;
+            const entry = entries.find(x => x.id === id);
+            if (entry) deleteEntry(entry);
+          });
+        });
+        const loadMoreBtn = scrollEl.querySelector('.load-more');
+        if (loadMoreBtn) loadMoreBtn.addEventListener('click', () => load());
+      }
+
+      function renderEntry(e) {
+        const kicker = KICKER_FOR_TYPE[e.type] || e.type.toUpperCase();
+        return `
+          <div class="entry" data-id="${escapeHtml(e.id)}">
+            <span class="entry-kicker">${kicker}</span>
+            <span class="entry-title">${escapeHtml(e.title || '')}</span>
+            ${e.body ? `<div class="entry-body">${escapeHtml(e.body)}</div>` : ''}
+            <button class="entry-delete" type="button" data-id="${escapeHtml(e.id)}" aria-label="Delete">×</button>
+          </div>
+        `;
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      async function deleteEntry(entry) {
+        const [entryType, numId] = entry.id.split(':');
+        const rowEl = scrollEl.querySelector(`[data-id="${cssEscape(entry.id)}"]`);
+        if (rowEl) rowEl.style.opacity = '0';
+
+        try {
+          const resp = await fetch(`${CFG.apiBase}/memory/entry/${entryType}/${numId}`, { method: 'DELETE' });
+          if (!resp.ok && resp.status !== 204) throw new Error(`HTTP ${resp.status}`);
+        } catch (e) {
+          console.warn('Delete failed', e);
+          if (rowEl) rowEl.style.opacity = '1';
+          showToast("Couldn't forget that — try again", null);
+          return;
+        }
+
+        showToast('Forgot this.', entry);
+
+        const handle = setTimeout(() => {
+          entries = entries.filter(x => x.id !== entry.id);
+          if (rowEl && rowEl.parentNode) rowEl.remove();
+          pendingDeletes.delete(entry.id);
+          hideToast();
+        }, 5000);
+        pendingDeletes.set(entry.id, handle);
+      }
+
+      async function undoDelete(entry) {
+        const handle = pendingDeletes.get(entry.id);
+        if (handle) clearTimeout(handle);
+        pendingDeletes.delete(entry.id);
+
+        const [entryType, numId] = entry.id.split(':');
+        try {
+          await fetch(`${CFG.apiBase}/memory/entry/${entryType}/${numId}/restore`, { method: 'POST' });
+        } catch (e) {
+          console.warn('Restore failed', e);
+        }
+
+        const rowEl = scrollEl.querySelector(`[data-id="${cssEscape(entry.id)}"]`);
+        if (rowEl) rowEl.style.opacity = '1';
+        hideToast();
+      }
+
+      function showToast(message, entryOrNull) {
+        toastEl.innerHTML = escapeHtml(message);
+        if (entryOrNull) {
+          const btn = document.createElement('button');
+          btn.className = 'undo-btn';
+          btn.textContent = 'Undo';
+          btn.addEventListener('click', () => undoDelete(entryOrNull));
+          toastEl.appendChild(btn);
+        }
+        toastEl.classList.add('visible');
+      }
+
+      function hideToast() {
+        toastEl.classList.remove('visible');
+      }
+
+      function cssEscape(s) {
+        return String(s).replace(/"/g, '\\"');
+      }
+
+      filtersEl.addEventListener('click', (ev) => {
+        const chip = ev.target.closest('.chip');
+        if (!chip) return;
+        const type = chip.dataset.type;
+        if (chip.classList.toggle('active')) {
+          selectedTypes.add(type);
+        } else {
+          selectedTypes.delete(type);
+        }
+        entries = [];
+        nextBefore = null;
+        scrollEl.innerHTML = '';
+        load();
+      });
+
+      closeBtn.addEventListener('click', close);
+
+      panel.addEventListener('scroll', () => {
+        if (!hasMore || loading) return;
+        const scrollBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight;
+        if (scrollBottom < 200) load();
+      });
+
+      panel.addEventListener('click', (ev) => {
+        if (ev.target === panel) close();
+      });
+
+      return { open, close, toggle, isOpen: () => isOpen };
+    })();
+
+    // ─── Timeline toggle wiring ──────────────────────────────────────
+    const timelineToggleEl = document.getElementById('timeline-toggle');
+    function renderTimelineToggle() {
+      if (Timeline.isOpen()) {
+        timelineToggleEl.classList.add('active');
+        timelineToggleEl.title = 'Memory — click to close';
+      } else {
+        timelineToggleEl.classList.remove('active');
+        timelineToggleEl.title = 'Memory — click to open';
+      }
+    }
+    timelineToggleEl.addEventListener('click', () => {
+      Timeline.toggle();
+      renderTimelineToggle();
+    });
+
+    // Keyboard: Cmd+K / Ctrl+K toggles the panel; Escape closes it
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        Timeline.toggle();
+        renderTimelineToggle();
+      }
+      if (e.key === 'Escape' && Timeline.isOpen()) {
+        e.preventDefault();
+        Timeline.close();
+        renderTimelineToggle();
+      }
+    });
+
+    // ─── Wake Word module ────────────────────────────────────────────
+    const WakeWord = (() => {
+      let enabled = false;
+      let speaking = false;
+      let silenceStart = 0;
+      let speechStart = 0;
+      let animFrame = null;
+
+      const THRESHOLD = 1.2;   // RMS 0-128. RODE AI-1 ambient ~0.7, speech ~1.5+
+      const SILENCE_MS = 1500; // sustained silence after speech → stop, send, restart
+      const MAX_CHUNK_SECONDS = 15; // max recording length before forced send (~60 chunks)
+      const MAX_CHUNKS = 60;
+      let _debugCount = 0;
+      let _restarting = false; // prevents monitor from restarting during onstop processing
+
+      function monitor() {
+        if (!enabled) return;
+        // Suppress while Samantha is speaking to prevent feedback loop
+        if (mood === 'speaking') {
+          speaking = false;
+          silenceStart = 0;
+          animFrame = requestAnimationFrame(monitor);
+          return;
+        }
+        if (!micAnalyser) {
+          if (_debugCount++ % 300 === 0) console.warn('🎤 WakeWord: micAnalyser is null');
+          animFrame = requestAnimationFrame(monitor);
+          return;
+        }
+
+        // Ensure recorder is always running in wake mode (but not during restart window)
+        if (!recording && enabled && !_restarting) {
+          audioSource = 'wake';
+          startRec();
+        }
+
+        const data = new Uint8Array(micAnalyser.fftSize);
+        micAnalyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / data.length) * 128;
+
+        if (_debugCount++ % 300 === 0) {
+          console.log(`🎤 VAD rms=${rms.toFixed(1)} thr=${THRESHOLD} mood=${mood} speaking=${speaking} rec=${recording} chunks=${chunks.length}`);
+        }
+
+        if (rms > THRESHOLD) {
+          // Speech detected
+          silenceStart = 0;
+          speaking = true;
+        } else {
+          // Silence
+          if (speaking && recording) {
+            if (!silenceStart) silenceStart = Date.now();
+            if (Date.now() - silenceStart > SILENCE_MS) {
+              _sendAndRestart();
+            }
+          }
+        }
+
+        // Safety: if recording runs too long (user talking non-stop), force-send
+        if (speaking && recording && chunks.length >= MAX_CHUNKS) {
+          _sendAndRestart();
+        }
+
+        animFrame = requestAnimationFrame(monitor);
+      }
+
+      function _sendAndRestart() {
+        speaking = false;
+        silenceStart = 0;
+        _restarting = true; // block monitor from restarting immediately
+        console.log(`🎤 Wake: sending ${chunks.length} chunks`);
+
+        // Save chunks before stopRec clears state
+        const savedChunks = chunks.slice();
+        stopRec();
+
+        // The onstop handler normally sends. But there's a race where
+        // the monitor restarts recording (clearing chunks) before onstop fires.
+        // We use _restarting flag + manual blob send as a safety net.
+        if (savedChunks.length > 0) {
+          const mimeType = recorder ? recorder.mimeType : 'audio/webm;codecs=opus';
+          const blob = new Blob(savedChunks, { type: mimeType });
+          if (blob.size > 500) {
+            console.log(`🎤 Wake: manual blob ${blob.size} bytes from ${savedChunks.length} chunks`);
+            audioSource = 'wake';
+            // Read as base64 and send
+            const r = new FileReader();
+            r.onloadend = () => {
+              const b64 = r.result.split(',')[1];
+              if (ws && ws.readyState === 1 && b64) {
+                ws.send(JSON.stringify({event:'audio_chunk', audio:b64, source:'wake'}));
+                console.log(`🎤 Wake: sent ${b64.length} b64 chars`);
+              }
+              // Restart recording after send is queued
+              setTimeout(() => {
+                _restarting = false;
+                if (enabled && !recording) {
+                  audioSource = 'wake';
+                  startRec();
+                }
+              }, 300);
+            };
+            r.readAsDataURL(blob);
+          } else {
+            // Too small — probably just silence, skip
+            _restarting = false;
+            if (enabled && !recording) {
+              audioSource = 'wake';
+              startRec();
+            }
+          }
+        } else {
+          _restarting = false;
+          if (enabled && !recording) {
+            audioSource = 'wake';
+            startRec();
+          }
+        }
+      }
+
+      async function enable() {
+        if (enabled) return;
+        if (!micAnalyser) await initAudio();
+        if (!micAnalyser) {
+          console.warn('🎤 WakeWord: mic not available');
+          return;
+        }
+        enabled = true;
+        speaking = false;
+        silenceStart = 0;
+        _restarting = false;
+        audioSource = 'wake';
+        startRec();
+        monitor();
+        localStorage.setItem('samantha.wake.enabled', 'true');
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({event: 'wake_mode', enabled: true}));
+        }
+        console.log('🎤 WakeWord enabled (recorder always on)');
+      }
+
+      function disable() {
+        enabled = false;
+        speaking = false;
+        _restarting = false;
+        if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+        if (recording) stopRec();
+        localStorage.setItem('samantha.wake.enabled', 'false');
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({event: 'wake_mode', enabled: false}));
+        }
+        console.log('🎤 WakeWord disabled');
+      }
+
+      function isEnabled() { return enabled; }
+
+      async function restoreFromStorage() {
+        if (localStorage.getItem('samantha.wake.enabled') === 'true') {
+          await enable();
+        }
+      }
+
+      return { enable, disable, isEnabled, restoreFromStorage };
+    })();
+
+    // ─── Wake toggle wiring ──────────────────────────────────────────
+    const wakeToggleEl = document.getElementById('wake-toggle');
+    function renderWakeToggle() {
+      if (WakeWord.isEnabled()) {
+        wakeToggleEl.classList.add('active');
+        wakeToggleEl.title = "Wake word on — say 'Hey Samantha' or click to disable";
+      } else {
+        wakeToggleEl.classList.remove('active');
+        wakeToggleEl.title = "Wake word off — click to enable 'Hey Samantha'";
+      }
+    }
+    wakeToggleEl.addEventListener('click', async () => {
+      if (WakeWord.isEnabled()) {
+        WakeWord.disable();
+      } else {
+        await WakeWord.enable();
+      }
+      renderWakeToggle();
+    });
+    setTimeout(renderWakeToggle, 600);
+
     // ─── Chime ───────────────────────────────────────────────────────
     const Chime = (() => {
       let audioCtx = null;
@@ -949,7 +1730,7 @@
       async function load() {
         try {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const url = `http://${location.hostname}:8000/static/chime.wav`;
+          const url = `${CFG.apiBase}/static/chime.wav`;
           const resp = await fetch(url);
           if (!resp.ok) throw new Error(`chime fetch: ${resp.status}`);
           const arr = await resp.arrayBuffer();
@@ -1117,7 +1898,12 @@
     // ─── WEBSOCKET ───────────────────────────
     function connectWS() {
       ws = new WebSocket(CFG.wsUrl);
-      ws.onopen=()=>{console.log('🌸 Connected');setStatus('idle');setMood('calm');};
+      ws.onopen=()=>{
+        console.log('🌸 Connected');setStatus('idle');setMood('calm');
+        if (WakeWord && WakeWord.isEnabled()) {
+          ws.send(JSON.stringify({event: 'wake_mode', enabled: true}));
+        }
+      };
       ws.onmessage=e=>{
         let d;
         try { d = JSON.parse(e.data); } catch(x) { console.error('WS parse error', x); return; }
@@ -1215,7 +2001,7 @@
           console.log('🔧 Resuming suspended audioCtx...');
           await audioCtx.resume();
         }
-        if(!recording) startRec();
+        if(!recording) { audioSource = 'ptt'; startRec(); }
       }
       if(e.key==='Escape'&&recording){
         recording=false;recorder?.stop();chunks=[];
@@ -1258,7 +2044,7 @@
         console.log('🔧 Resuming audioCtx from mic button...');
         await audioCtx.resume();
       }
-      if(!recording) { startRec(); btnMic.classList.add('recording'); }
+      if(!recording) { audioSource = 'ptt'; startRec(); btnMic.classList.add('recording'); }
     }
     function micUp(e) {
       e.preventDefault();
@@ -1311,6 +2097,7 @@
       Chime.load();
       Chime.attachUnlock();
       Vision.restoreFromStorage();
+      WakeWord.restoreFromStorage();
       connectWS();
 
       await sleep(2000);

@@ -34,6 +34,7 @@ from integrations.vision import VisionIntegration
 from integrations.vision.models import SnapshotError
 from integrations.vision.store import VisionStore
 from intents import IntentRouter
+from wake import detect_wake_prefix
 
 # Optional integrations (imported conditionally)
 try:
@@ -87,6 +88,7 @@ class SamanthaState:
         self.tasks_integration: TasksIntegration | None = None
         self.vision_integration: VisionIntegration | None = None
         self.pending_snapshots: dict = {}  # req_id → asyncio.Future[str]
+        self.wake_mode: dict = {}  # WebSocket → bool
         self.summarizer = ConversationSummarizer()
         self.proactive = ProactiveBehavior()
         self._session_start: str = datetime.now().isoformat()
@@ -858,6 +860,76 @@ async def search_memory(q: str):
     }
 
 
+@app.get("/memory/timeline")
+async def get_memory_timeline(types: str = "", limit: int = 100, before: str | None = None):
+    """Return a chronological timeline of Samantha's stored knowledge.
+
+    Query params:
+      types: comma-separated list of entry types (fact, entity, observation,
+             episode, mood, news). Empty string returns empty list.
+      limit: maximum number of entries to return (1-500, default 100).
+      before: ISO 8601 timestamp cursor for pagination; returns entries with
+              ts strictly less than this value.
+    """
+    if state.memory is None:
+        return {"entries": [], "has_more": False, "next_before": None}
+
+    from memory.timeline import build_timeline, VALID_TYPES
+    from fastapi import HTTPException
+
+    limit = max(1, min(500, int(limit)))
+
+    type_set = {t.strip() for t in types.split(",") if t.strip()}
+    unknown = type_set - VALID_TYPES
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown entry types: {sorted(unknown)}",
+        )
+
+    try:
+        result = build_timeline(
+            state.memory.conn,
+            types=type_set,
+            limit=limit,
+            before=before,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return result
+
+
+@app.delete("/memory/entry/{entry_type}/{entry_id}", status_code=204)
+async def delete_memory_entry(entry_type: str, entry_id: int):
+    """Soft-delete a memory entry. Idempotent — missing row is a no-op 204."""
+    if state.memory is None:
+        return
+
+    from memory.timeline import soft_delete_entry
+    from fastapi import HTTPException
+
+    try:
+        soft_delete_entry(state.memory.conn, entry_type, entry_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/memory/entry/{entry_type}/{entry_id}/restore", status_code=204)
+async def restore_memory_entry(entry_type: str, entry_id: int):
+    """Restore a soft-deleted memory entry. Idempotent — non-deleted row is a no-op 204."""
+    if state.memory is None:
+        return
+
+    from memory.timeline import restore_entry
+    from fastapi import HTTPException
+
+    try:
+        restore_entry(state.memory.conn, entry_type, entry_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 def _split_sentences(text: str) -> list[str]:
     """Split text into sentences for chunked TTS."""
     import re
@@ -952,10 +1024,28 @@ async def ws_endpoint(ws: WebSocket):
 
             if data.get("event") == "audio_chunk":
                 import base64
+                source = data.get("source", "ptt")
+                logger.info(f"🎤 audio_chunk received, source={source}, b64_len={len(data.get('audio',''))}")
                 audio_bytes = base64.b64decode(data["audio"])
                 user_text = await transcribe(audio_bytes)
+                logger.info(f"🎤 STT result: '{user_text[:80]}' (source={source})")
                 if not user_text.strip():
+                    logger.info("🎤 STT returned empty — discarding")
                     continue
+                # Wake mode filtering (source already read above)
+                if source == "wake" and state.wake_mode.get(ws, False):
+                    prefix, remainder = detect_wake_prefix(user_text)
+                    if prefix is None:
+                        logger.debug(f"🎤 Wake: discarded (no prefix): {user_text[:60]}")
+                        continue
+                    if not remainder:
+                        # Wake-only — warm acknowledgment
+                        ack = "Mm?"
+                        await ws.send_json({"event": "samantha_speaking", "text": ack, "mood": "calm"})
+                        asyncio.create_task(_send_audio(ws, {"text": ack, "tts_text": ack}))
+                        continue
+                    user_text = remainder
+                    logger.info(f"🎤 Wake: stripped '{prefix}' → {user_text[:60]}")
                 await ws.send_json({"event": "user_speaking", "text": user_text})
                 await ws.send_json({"event": "thinking"})
                 # Spawn process_message as a task so the WS handler can keep
@@ -1011,6 +1101,11 @@ async def ws_endpoint(ws: WebSocket):
                     else:
                         fut.set_result(data.get("image", ""))
 
+            elif data.get("event") == "wake_mode":
+                state.wake_mode[ws] = data.get("enabled", False)
+                logger.info(f"🎤 Wake mode {'on' if data.get('enabled') else 'off'}")
+
     except WebSocketDisconnect:
         state.clients.remove(ws)
+        state.wake_mode.pop(ws, None)
         logger.info(f"🖥️  Shell disconnected ({len(state.clients)})")

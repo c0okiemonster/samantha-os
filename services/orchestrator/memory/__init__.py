@@ -31,7 +31,7 @@ class ConversationMemory:
     def __init__(self, db_path: str = "config/samantha_memory.db"):
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
 
@@ -199,6 +199,15 @@ class ConversationMemory:
             self.conn.commit()
         except Exception:
             pass
+
+        # Migration: add deleted_at to timelined tables for the Memory Timeline UI
+        # (observations already has deleted_at from the vision feature)
+        for _tbl in ("facts", "entities", "episodes", "mood_log", "news_digests"):
+            try:
+                self.conn.execute(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP")
+                self.conn.commit()
+            except Exception:
+                pass  # column already exists
 
     # ─── Episodic Memory ──────────────────
 
